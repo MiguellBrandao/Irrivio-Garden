@@ -19,10 +19,7 @@ garden-management/
 │
 ├─ packages/
 │  ├─ database/      # Drizzle schema + database client
-│  ├─ ui/            # Shared UI components (optional)
-│  ├─ types/         # Shared TypeScript types
-│  └─ config/        # Shared configs (eslint, tsconfig)
-│
+│  └─ types/         # Shared TypeScript types
 ├─ turbo.json
 ├─ pnpm-workspace.yaml
 ├─ package.json
@@ -37,6 +34,18 @@ garden-management/
 apps/web
 │
 ├─ app/
+│  ├─ (private)/
+│  │  ├─ dashboard/
+│  │  ├─ calendar/
+│  │  ├─ gardens/
+│  │  ├─ employees/
+│  │  ├─ teams/
+│  │  ├─ products/
+│  │  ├─ payments/
+│  │  └─ quotes/
+│  └─ login/
+│
+├─ features/
 │  ├─ dashboard/
 │  ├─ calendar/
 │  ├─ gardens/
@@ -44,11 +53,10 @@ apps/web
 │  ├─ teams/
 │  ├─ products/
 │  ├─ payments/
-│  ├─ quotes/
-│  └─ login/
+│  └─ quotes/
 │
 ├─ components/
-│  ├─ ui/
+│  ├─ ui/            # shadcn/ui (base required components)
 │  ├─ forms/
 │  ├─ tables/
 │  └─ calendar/
@@ -122,16 +130,26 @@ Example `turbo.json`:
 
 ```json
 {
-  "pipeline": {
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": [".next/**", "dist/**"]
     },
     "dev": {
-      "cache": false
+      "cache": false,
+      "persistent": true
     },
-    "lint": {},
-    "test": {}
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    }
   }
 }
 ```
