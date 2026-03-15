@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -26,8 +27,8 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
@@ -39,8 +40,13 @@ export class TasksController {
   async findOne(
     @Req() request: Request,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: CompanyScopedQueryDto,
   ) {
-    const task = await this.tasksService.findById(id, this.requesterFrom(request));
+    const task = await this.tasksService.findById(
+      id,
+      this.requesterFrom(request),
+      query.company_id,
+    );
     if (!task) {
       throw new NotFoundException('Task not found');
     }

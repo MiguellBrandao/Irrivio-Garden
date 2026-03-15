@@ -7,8 +7,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 
-export class UpdateGardenDto {
+export class UpdateGardenDto extends CompanyScopedBodyDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)

@@ -1,86 +1,115 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
-import { employeeTeams, employees, gardens, tasks } from '../db/schema';
+import { companyMembershipTeams, gardens, tasks } from '../db/schema';
 import { CreateGardenDto } from './dto/create-garden.dto';
 import { UpdateGardenDto } from './dto/update-garden.dto';
 
 type Requester = {
   id: string;
-  role: 'admin' | 'employee';
 };
 
 @Injectable()
 export class GardensService {
-  async findAll(requester: Requester) {
-    if (requester.role === 'admin') {
-      return this.findAllFull();
-    }
+  constructor(private readonly companiesService: CompaniesService) {}
 
-    const employee = await this.findEmployeeByUserId(requester.id);
-    if (!employee) {
+  async findAll(requester: Requester, companyId?: string) {
+    const accessibleMemberships =
+      await this.companiesService.resolveAccessibleCompanyMemberships(
+        requester.id,
+        companyId,
+      );
+
+    if (accessibleMemberships.length === 0) {
       return [];
     }
 
-    const accessibleGardenIds = await this.getAccessibleGardenIdsForEmployee(
-      employee.id,
+    const accessibleCompanyIds = accessibleMemberships.map(
+      (membership) => membership.company_id,
     );
-    if (accessibleGardenIds.length === 0) {
-      return [];
+    const adminCompanyIds = new Set(
+      accessibleMemberships
+        .filter((membership) => membership.role === 'admin')
+        .map((membership) => membership.company_id),
+    );
+    const employeeMemberships = accessibleMemberships.filter(
+      (membership) => membership.role === 'employee',
+    );
+
+    const rows = await this.findAllFull(accessibleCompanyIds);
+
+    if (employeeMemberships.length === 0) {
+      return rows;
     }
 
-    const rows = await db
-      .select({
-        id: gardens.id,
-        client_name: gardens.clientName,
-        address: gardens.address,
-        phone: gardens.phone,
-        monthly_price: gardens.monthlyPrice,
-        maintenance_frequency: gardens.maintenanceFrequency,
-        start_date: gardens.startDate,
-        billing_day: gardens.billingDay,
-        status: gardens.status,
-        notes: gardens.notes,
-        created_at: gardens.createdAt,
-      })
-      .from(gardens)
-      .where(inArray(gardens.id, accessibleGardenIds))
-      .orderBy(desc(gardens.createdAt));
+    const accessibleGardenIds = new Set(
+      await this.getAccessibleGardenIdsForCompanyMemberships(
+        employeeMemberships.map((membership) => membership.id),
+        employeeMemberships.map((membership) => membership.company_id),
+      ),
+    );
 
-    return rows.map((row) => this.toEmployeeGardenView(row));
+    return rows.flatMap((row) => {
+      if (adminCompanyIds.has(row.company_id)) {
+        return [row];
+      }
+
+      if (!accessibleGardenIds.has(row.id)) {
+        return [];
+      }
+
+      return [this.toEmployeeGardenView(row)];
+    });
   }
 
-  async findById(id: string, requester: Requester) {
-    if (requester.role === 'admin') {
-      return this.findByIdFull(id);
-    }
-
-    const employee = await this.findEmployeeByUserId(requester.id);
-    if (!employee) {
+  async findById(id: string, requester: Requester, companyId?: string) {
+    const garden = await this.findGardenById(id);
+    if (!garden) {
       return null;
     }
 
-    const accessibleGardenIds = await this.getAccessibleGardenIdsForEmployee(
-      employee.id,
+    if (companyId && companyId !== garden.company_id) {
+      return null;
+    }
+
+    await this.companiesService.assertUserBelongsToCompany(
+      requester.id,
+      garden.company_id,
+    );
+
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+        requester.id,
+        garden.company_id,
+      );
+
+    if (requesterMembership.role === 'admin') {
+      return garden;
+    }
+
+    const accessibleGardenIds = await this.getAccessibleGardenIdsForCompanyMemberships(
+      [requesterMembership.id],
+      [garden.company_id],
     );
     if (!accessibleGardenIds.includes(id)) {
       return null;
     }
 
-    const row = await this.findByIdFull(id);
-    if (!row) {
-      return null;
-    }
-
-    return this.toEmployeeGardenView(row);
+    return this.toEmployeeGardenView(garden);
   }
 
   async create(dto: CreateGardenDto, requester: Requester) {
-    this.ensureAdmin(requester);
+    await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
 
     const rows = await db
       .insert(gardens)
       .values({
+        companyId: dto.company_id,
         clientName: dto.client_name,
         address: dto.address,
         phone: dto.phone,
@@ -93,6 +122,7 @@ export class GardensService {
       })
       .returning({
         id: gardens.id,
+        company_id: gardens.companyId,
         client_name: gardens.clientName,
         address: gardens.address,
         phone: gardens.phone,
@@ -109,7 +139,21 @@ export class GardensService {
   }
 
   async update(id: string, dto: UpdateGardenDto, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findGardenById(id);
+    if (!current) {
+      return null;
+    }
+
+    if (dto.company_id !== current.company_id) {
+      throw new BadRequestException(
+        'company_id must match the garden company_id',
+      );
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     const setPayload: {
       clientName?: string;
@@ -123,7 +167,10 @@ export class GardensService {
       notes?: string;
     } = {};
 
-    const responsePayload: Record<string, unknown> = { id };
+    const responsePayload: Record<string, unknown> = {
+      id,
+      company_id: current.company_id,
+    };
 
     if (dto.client_name !== undefined) {
       setPayload.clientName = dto.client_name;
@@ -176,7 +223,15 @@ export class GardensService {
   }
 
   async remove(id: string, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findGardenById(id);
+    if (!current) {
+      return false;
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     const deleted = await db
       .delete(gardens)
@@ -186,10 +241,23 @@ export class GardensService {
     return deleted.length > 0;
   }
 
-  private async findAllFull() {
+  async assertGardenExistsInCompany(gardenId: string, companyId: string) {
+    const garden = await this.findGardenById(gardenId);
+    if (!garden) {
+      throw new NotFoundException('Garden not found');
+    }
+    if (garden.company_id !== companyId) {
+      throw new BadRequestException('Garden does not belong to this company');
+    }
+
+    return garden;
+  }
+
+  private async findAllFull(companyIds: string[]) {
     return db
       .select({
         id: gardens.id,
+        company_id: gardens.companyId,
         client_name: gardens.clientName,
         address: gardens.address,
         phone: gardens.phone,
@@ -202,13 +270,15 @@ export class GardensService {
         created_at: gardens.createdAt,
       })
       .from(gardens)
+      .where(inArray(gardens.companyId, companyIds))
       .orderBy(desc(gardens.createdAt));
   }
 
-  private async findByIdFull(id: string) {
+  private async findGardenById(id: string) {
     const rows = await db
       .select({
         id: gardens.id,
+        company_id: gardens.companyId,
         client_name: gardens.clientName,
         address: gardens.address,
         phone: gardens.phone,
@@ -229,6 +299,7 @@ export class GardensService {
 
   private toEmployeeGardenView(row: {
     id: string;
+    company_id: string;
     client_name: string;
     address: string;
     phone: string | null;
@@ -244,24 +315,31 @@ export class GardensService {
     return safe;
   }
 
-  private async findEmployeeByUserId(userId: string) {
-    const rows = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(eq(employees.userId, userId))
-      .limit(1);
-    return rows[0] ?? null;
-  }
+  private async getAccessibleGardenIdsForCompanyMemberships(
+    companyMembershipIds: string[],
+    companyIds: string[],
+  ) {
+    if (companyMembershipIds.length === 0 || companyIds.length === 0) {
+      return [];
+    }
 
-  private async getAccessibleGardenIdsForEmployee(employeeId: string) {
     const rows = await db
       .select({ garden_id: tasks.gardenId })
       .from(tasks)
       .innerJoin(
-        employeeTeams,
+        companyMembershipTeams,
         and(
-          eq(employeeTeams.teamId, tasks.teamId),
-          eq(employeeTeams.employeeId, employeeId),
+          eq(companyMembershipTeams.teamId, tasks.teamId),
+          eq(companyMembershipTeams.companyId, tasks.companyId),
+        ),
+      )
+      .where(
+        and(
+          inArray(
+            companyMembershipTeams.companyMembershipId,
+            companyMembershipIds,
+          ),
+          inArray(tasks.companyId, companyIds),
         ),
       );
 
@@ -269,14 +347,8 @@ export class GardensService {
       ...new Set(
         rows
           .map((item) => item.garden_id)
-          .filter((id): id is string => Boolean(id)),
+          .filter((gardenId): gardenId is string => Boolean(gardenId)),
       ),
     ];
-  }
-
-  private ensureAdmin(requester: Requester) {
-    if (requester.role !== 'admin') {
-      throw new ForbiddenException('Only admins can manage gardens');
-    }
   }
 }

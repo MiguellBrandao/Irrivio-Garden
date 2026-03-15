@@ -9,8 +9,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 
-export class UpdatePaymentDto {
+export class UpdatePaymentDto extends CompanyScopedBodyDto {
   @IsOptional()
   @IsUUID()
   garden_id?: string;

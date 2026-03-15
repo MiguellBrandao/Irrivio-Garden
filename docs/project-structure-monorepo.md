@@ -1,179 +1,108 @@
-# Project Structure — Monorepo (pnpm + Turborepo)
+# Project Structure - Monorepo
 
-This project uses a **monorepo architecture** to manage frontend, backend, and shared code in a single repository.
+This repository uses `pnpm` workspaces plus `turbo`.
 
-Tools used:
-- pnpm (package manager)
-- Turborepo (task orchestration & caching)
+## Root
 
----
-
-# Root Structure
-
-```
-garden-management/
-│
-├─ apps/
-│  ├─ web/           # Next.js frontend
-│  └─ api/           # NestJS backend
-│
-├─ packages/
-│  └─ types/         # Shared TypeScript types
-├─ turbo.json
-├─ pnpm-workspace.yaml
-├─ package.json
-├─ docker-compose.yml
-└─ README.md
+```txt
+Floripa Intranet/
+|- apps/
+|  |- api/
+|  `- web/
+|- docs/
+|- packages/
+|  `- types/
+|- docker-compose.yml
+|- package.json
+|- pnpm-workspace.yaml
+`- turbo.json
 ```
 
----
+## apps/api
 
-# apps/web (Next.js Frontend)
+Direct local base URL is `http://localhost:3001`.
 
-```
-apps/web
-│
-├─ app/
-│  ├─ (private)/
-│  │  ├─ dashboard/
-│  │  ├─ calendar/
-│  │  ├─ gardens/
-│  │  ├─ employees/
-│  │  ├─ teams/
-│  │  ├─ products/
-│  │  ├─ payments/
-│  │  └─ quotes/
-│  └─ login/
-│
-├─ features/
-│  ├─ dashboard/
-│  ├─ calendar/
-│  ├─ gardens/
-│  ├─ employees/
-│  ├─ teams/
-│  ├─ products/
-│  ├─ payments/
-│  └─ quotes/
-│
-├─ components/
-│  ├─ ui/            # shadcn/ui (base required components)
-│  ├─ forms/
-│  ├─ tables/
-│  └─ calendar/
-│
-├─ lib/
-│  ├─ api/
-│  ├─ auth/
-│  └─ utils/
-│
-└─ styles/
+```txt
+apps/api/
+|- drizzle/
+|- scripts/
+`- src/
+   |- app.module.ts
+   |- main.ts
+   |- auth/
+   |- common/
+   |- company-memberships/
+   |- companies/
+   |- db/
+   |- gardens/
+   |- payments/
+   |- product-usage/
+   |- products/
+   |- quotes/
+   |- tasks/
+   |- teams/
+   |- users/
+   `- worklogs/
 ```
 
----
+Notes:
 
-# apps/api (NestJS Backend)
+- Modules currently follow the NestJS pattern `controller.ts`, `service.ts`, and `dto/`.
+- There is no shared repository layer per module yet.
+- `companies/` is currently an internal support module used for company access checks and session payloads.
+- `db/schema.ts` is the source of truth for the Drizzle schema.
+- `drizzle/0005_companies_multitenancy.sql` introduces the company-scoped model.
 
-```
-apps/api/src
+## apps/web
 
-db/
-auth/
-users/
-employees/
-teams/
-gardens/
-tasks/
-worklogs/
-products/
-product-usage/
-payments/
-quotes/
-```
-
-Each module follows the NestJS structure:
-
-```
-module.ts
-controller.ts
-service.ts
-dto/
-repository/
-```
-
----
-
-# apps/api/db (Drizzle ORM + Postgres)
-
-Contains the **Drizzle ORM setup** inside the API.
-
-```
-apps/api
-
-drizzle.config.ts
-drizzle/
-src/db/
-  schema.ts
-  client.ts
-  index.ts
+```txt
+apps/web/
+|- app/
+|  |- (private)/
+|  |  |- calendar/
+|  |  |- dashboard/
+|  |  |- employees/
+|  |  |- gardens/
+|  |  |- payments/
+|  |  |- quotes/
+|  |  |- stock/
+|  |  `- teams/
+|  |- (print)/
+|  |  `- quotes/
+|  |- auth/
+|  `- layout.tsx
+|- components/
+|- features/
+|  |- calendar/
+|  |- employees/
+|  |- gardens/
+|  |- payments/
+|  |- quotes/
+|  |- stock/
+|  `- teams/
+|- hooks/
+`- lib/
+   |- api/
+   `- auth/
 ```
 
-# Docker Compose Startup Flow
+Notes:
 
-`docker-compose.yml` startup order:
+- The web currently uses `stock` as the product feature namespace.
+- `dashboard` is still lightweight, but `quotes` now has list, create, edit, and printable document flows.
+- The auth store keeps `companies` plus `activeCompanyId`.
+- Feature API wrappers append `company_id` to company-scoped requests.
 
-```
-workspace -> postgres -> migration -> (api + web)
-```
+## packages/types
 
----
+- Present in the workspace, but currently not used as a populated shared package.
 
-# Turborepo Configuration
+## Docker flow
 
-Example `turbo.json`:
+`docker-compose.yml` runs the stack in this order:
 
-```json
-{
-  "$schema": "https://turbo.build/schema.json",
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "test": {
-      "dependsOn": ["^test"],
-      "outputs": ["coverage/**"]
-    },
-    "typecheck": {
-      "dependsOn": ["^typecheck"]
-    }
-  }
-}
-```
-
----
-
-# pnpm Workspace
-
-`pnpm-workspace.yaml`
-
-```yaml
-packages:
-  - apps/*
-  - packages/*
-```
-
----
-
-# Benefits of This Setup
-
-- Shared code between frontend and backend
-- Faster builds with caching
-- Easier dependency management
-- Clean separation of services
+1. `workspace`
+2. `postgres`
+3. `migration`
+4. `api`
+5. `web`

@@ -1,6 +1,7 @@
 import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import { CompanyScopedQueryDto } from '../../common/dto/company-scoped-query.dto';
 
-export class ListWorkLogsQueryDto {
+export class ListWorkLogsQueryDto extends CompanyScopedQueryDto {
   @IsOptional()
   @IsUUID()
   task_id?: string;

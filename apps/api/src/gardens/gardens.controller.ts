@@ -9,11 +9,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateGardenDto } from './dto/create-garden.dto';
 import { GardensService } from './gardens.service';
 import { UpdateGardenDto } from './dto/update-garden.dto';
@@ -24,21 +26,29 @@ export class GardensController {
   constructor(private readonly gardensService: GardensService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
-  findAll(@Req() request: Request) {
-    return this.gardensService.findAll(this.requesterFrom(request));
+  findAll(@Req() request: Request, @Query() query: CompanyScopedQueryDto) {
+    return this.gardensService.findAll(
+      this.requesterFrom(request),
+      query.company_id,
+    );
   }
 
   @Get(':id')
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() request: Request,
+    @Query() query: CompanyScopedQueryDto,
   ) {
-    const garden = await this.gardensService.findById(id, this.requesterFrom(request));
+    const garden = await this.gardensService.findById(
+      id,
+      this.requesterFrom(request),
+      query.company_id,
+    );
     if (!garden) {
       throw new NotFoundException('Garden not found');
     }

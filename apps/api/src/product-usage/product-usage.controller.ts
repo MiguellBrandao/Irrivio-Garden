@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateProductUsageDto } from './dto/create-product-usage.dto';
 import { ListProductUsageQueryDto } from './dto/list-product-usage-query.dto';
 import { UpdateProductUsageDto } from './dto/update-product-usage.dto';
@@ -26,8 +27,8 @@ export class ProductUsageController {
   constructor(private readonly productUsageService: ProductUsageService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
@@ -39,10 +40,12 @@ export class ProductUsageController {
   async findOne(
     @Req() request: Request,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: CompanyScopedQueryDto,
   ) {
     const usage = await this.productUsageService.findById(
       id,
       this.requesterFrom(request),
+      query.company_id,
     );
     if (!usage) {
       throw new NotFoundException('Product usage not found');
@@ -87,4 +90,3 @@ export class ProductUsageController {
     }
   }
 }
-

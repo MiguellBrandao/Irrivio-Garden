@@ -1,111 +1,139 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
+import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
-import { quotes } from '../db/schema';
+import { gardens, quotes } from '../db/schema';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 
 type Requester = {
   id: string;
-  role: 'admin' | 'employee';
+};
+
+type QuoteRow = {
+  id: string;
+  company_id: string;
+  garden_id: string;
+  garden_client_name: string;
+  garden_address: string;
+  services: string[];
+  price: string;
+  valid_until: string;
+  created_at: Date;
 };
 
 @Injectable()
 export class QuotesService {
-  async findAll(requester: Requester) {
-    this.ensureAdmin(requester);
+  constructor(private readonly companiesService: CompaniesService) {}
+
+  async findAll(requester: Requester, companyId?: string) {
+    const accessibleCompanyIds =
+      await this.companiesService.resolveAdminCompanyIds(
+        requester.id,
+        companyId,
+      );
+
+    if (accessibleCompanyIds.length === 0) {
+      return [];
+    }
 
     return db
       .select({
         id: quotes.id,
-        client_name: quotes.clientName,
-        address: quotes.address,
-        description: quotes.description,
+        company_id: quotes.companyId,
+        garden_id: quotes.gardenId,
+        garden_client_name: gardens.clientName,
+        garden_address: gardens.address,
+        services: quotes.services,
         price: quotes.price,
-        status: quotes.status,
+        valid_until: quotes.validUntil,
         created_at: quotes.createdAt,
       })
       .from(quotes)
+      .innerJoin(gardens, eq(quotes.gardenId, gardens.id))
+      .where(inArray(quotes.companyId, accessibleCompanyIds))
       .orderBy(desc(quotes.createdAt));
   }
 
-  async create(dto: CreateQuoteDto, requester: Requester) {
-    this.ensureAdmin(requester);
-
-    const clientName = dto.client_name.trim();
-    const address = dto.address.trim();
-    const description = dto.description.trim();
-
-    if (!clientName || !address || !description) {
-      throw new BadRequestException(
-        'client_name, address and description are required',
-      );
+  async findById(id: string, requester: Requester, companyId?: string) {
+    const quote = await this.findQuoteById(id);
+    if (!quote) {
+      return null;
     }
+
+    if (companyId && companyId !== quote.company_id) {
+      return null;
+    }
+
+    await this.companiesService.assertAdminAccess(requester.id, quote.company_id);
+
+    return quote;
+  }
+
+  async create(dto: CreateQuoteDto, requester: Requester) {
+    await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
+
+    await this.assertGardenExistsInCompany(dto.garden_id, dto.company_id);
+
+    const createdAt = new Date();
+    const validUntil = dto.valid_until ?? this.addOneMonth(createdAt);
+    const services = this.normalizeServices(dto.services);
 
     const rows = await db
       .insert(quotes)
       .values({
-        clientName,
-        address,
-        description,
+        companyId: dto.company_id,
+        gardenId: dto.garden_id,
+        services,
         price: dto.price.toString(),
-        status: dto.status ?? 'draft',
+        validUntil,
+        createdAt,
       })
-      .returning({
-        id: quotes.id,
-        status: quotes.status,
-      });
+      .returning({ id: quotes.id });
 
-    return rows[0];
+    return this.findQuoteByIdOrThrow(rows[0].id);
   }
 
   async update(id: string, dto: UpdateQuoteDto, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findQuoteById(id);
+    if (!current) {
+      return null;
+    }
+
+    if (dto.company_id !== current.company_id) {
+      throw new BadRequestException(
+        'company_id must match the quote company_id',
+      );
+    }
+
+    await this.companiesService.assertAdminAccess(requester.id, current.company_id);
 
     const setPayload: {
-      clientName?: string;
-      address?: string;
-      description?: string;
+      gardenId?: string;
+      services?: string[];
       price?: string;
-      status?: 'draft' | 'sent';
+      validUntil?: string;
     } = {};
-    const responsePayload: Record<string, unknown> = { id };
 
-    if (dto.client_name !== undefined) {
-      const value = dto.client_name.trim();
-      if (!value) {
-        throw new BadRequestException('client_name cannot be empty');
-      }
-      setPayload.clientName = value;
-      responsePayload.client_name = value;
+    if (dto.garden_id !== undefined) {
+      await this.assertGardenExistsInCompany(dto.garden_id, current.company_id);
+      setPayload.gardenId = dto.garden_id;
     }
-    if (dto.address !== undefined) {
-      const value = dto.address.trim();
-      if (!value) {
-        throw new BadRequestException('address cannot be empty');
-      }
-      setPayload.address = value;
-      responsePayload.address = value;
+
+    if (dto.services !== undefined) {
+      setPayload.services = this.normalizeServices(dto.services);
     }
-    if (dto.description !== undefined) {
-      const value = dto.description.trim();
-      if (!value) {
-        throw new BadRequestException('description cannot be empty');
-      }
-      setPayload.description = value;
-      responsePayload.description = value;
-    }
+
     if (dto.price !== undefined) {
       setPayload.price = dto.price.toString();
-      responsePayload.price = dto.price.toFixed(2);
     }
-    if (dto.status !== undefined) {
-      setPayload.status = dto.status;
-      responsePayload.status = dto.status;
+
+    if (dto.valid_until !== undefined) {
+      setPayload.validUntil = dto.valid_until;
     }
 
     if (Object.keys(setPayload).length === 0) {
@@ -118,11 +146,20 @@ export class QuotesService {
       .where(eq(quotes.id, id))
       .returning({ id: quotes.id });
 
-    return updated.length > 0 ? responsePayload : null;
+    if (updated.length === 0) {
+      return null;
+    }
+
+    return this.findQuoteByIdOrThrow(id);
   }
 
   async remove(id: string, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findQuoteById(id);
+    if (!current) {
+      return false;
+    }
+
+    await this.companiesService.assertAdminAccess(requester.id, current.company_id);
 
     const deleted = await db
       .delete(quotes)
@@ -132,10 +169,71 @@ export class QuotesService {
     return deleted.length > 0;
   }
 
-  private ensureAdmin(requester: Requester) {
-    if (requester.role !== 'admin') {
-      throw new ForbiddenException('Only admins can manage quotes');
+  private async findQuoteById(id: string): Promise<QuoteRow | null> {
+    const rows = await db
+      .select({
+        id: quotes.id,
+        company_id: quotes.companyId,
+        garden_id: quotes.gardenId,
+        garden_client_name: gardens.clientName,
+        garden_address: gardens.address,
+        services: quotes.services,
+        price: quotes.price,
+        valid_until: quotes.validUntil,
+        created_at: quotes.createdAt,
+      })
+      .from(quotes)
+      .innerJoin(gardens, eq(quotes.gardenId, gardens.id))
+      .where(eq(quotes.id, id))
+      .limit(1);
+
+    return (rows[0] as QuoteRow | undefined) ?? null;
+  }
+
+  private async findQuoteByIdOrThrow(id: string) {
+    const quote = await this.findQuoteById(id);
+    if (!quote) {
+      throw new NotFoundException('Quote not found');
+    }
+
+    return quote;
+  }
+
+  private async assertGardenExistsInCompany(gardenId: string, companyId: string) {
+    const rows = await db
+      .select({
+        id: gardens.id,
+        company_id: gardens.companyId,
+      })
+      .from(gardens)
+      .where(eq(gardens.id, gardenId))
+      .limit(1);
+
+    const garden = rows[0];
+    if (!garden) {
+      throw new NotFoundException('Garden not found');
+    }
+
+    if (garden.company_id !== companyId) {
+      throw new BadRequestException('Garden does not belong to this company');
     }
   }
-}
 
+  private normalizeServices(services: string[]) {
+    const normalizedServices = services
+      .map((service) => service.trim())
+      .filter(Boolean);
+
+    if (normalizedServices.length === 0) {
+      throw new BadRequestException('At least one service is required');
+    }
+
+    return normalizedServices;
+  }
+
+  private addOneMonth(date: Date) {
+    const nextDate = new Date(date);
+    nextDate.setMonth(nextDate.getMonth() + 1);
+    return nextDate.toISOString().slice(0, 10);
+  }
+}

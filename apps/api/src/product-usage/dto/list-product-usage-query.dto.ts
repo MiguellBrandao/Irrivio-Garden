@@ -1,6 +1,7 @@
 import { IsDateString, IsOptional, IsUUID } from 'class-validator';
+import { CompanyScopedQueryDto } from '../../common/dto/company-scoped-query.dto';
 
-export class ListProductUsageQueryDto {
+export class ListProductUsageQueryDto extends CompanyScopedQueryDto {
   @IsOptional()
   @IsUUID()
   product_id?: string;
@@ -11,7 +12,7 @@ export class ListProductUsageQueryDto {
 
   @IsOptional()
   @IsUUID()
-  employee_id?: string;
+  company_membership_id?: string;
 
   @IsOptional()
   @IsDateString()
@@ -21,4 +22,3 @@ export class ListProductUsageQueryDto {
   @IsDateString()
   date_to?: string;
 }
-

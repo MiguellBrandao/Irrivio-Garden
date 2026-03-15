@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
-import { EmployeesModule } from './employees/employees.module';
+import { CompanyMembershipsModule } from './company-memberships/company-memberships.module';
+import { CompaniesModule } from './companies/companies.module';
 import { GardensModule } from './gardens/gardens.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductUsageModule } from './product-usage/product-usage.module';
@@ -15,9 +16,10 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CompaniesModule,
+    CompanyMembershipsModule,
     UsersModule,
     AuthModule,
-    EmployeesModule,
     GardensModule,
     PaymentsModule,
     ProductsModule,

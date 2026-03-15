@@ -9,11 +9,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { TeamsService } from './teams.service';
 import { UpdateTeamDto } from './dto/update-team.dto';
@@ -24,21 +26,29 @@ export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
-  findAll(@Req() request: Request) {
-    return this.teamsService.findAll(this.requesterFrom(request));
+  findAll(@Req() request: Request, @Query() query: CompanyScopedQueryDto) {
+    return this.teamsService.findAll(
+      this.requesterFrom(request),
+      query.company_id,
+    );
   }
 
   @Get(':id')
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() request: Request,
+    @Query() query: CompanyScopedQueryDto,
   ) {
-    const team = await this.teamsService.findById(id, this.requesterFrom(request));
+    const team = await this.teamsService.findById(
+      id,
+      this.requesterFrom(request),
+      query.company_id,
+    );
     if (!team) {
       throw new NotFoundException('Team not found');
     }

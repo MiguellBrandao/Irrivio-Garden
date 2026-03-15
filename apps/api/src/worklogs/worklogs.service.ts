@@ -5,61 +5,48 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
+import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
-import { employeeTeams, employees, tasks, workLogs } from '../db/schema';
+import { companyMembershipTeams, tasks, workLogs } from '../db/schema';
 import { CreateWorkLogDto } from './dto/create-worklog.dto';
 import { ListWorkLogsQueryDto } from './dto/list-worklogs-query.dto';
 import { UpdateWorkLogDto } from './dto/update-worklog.dto';
 
 type Requester = {
   id: string;
-  role: 'admin' | 'employee';
 };
 
 @Injectable()
 export class WorkLogsService {
+  constructor(private readonly companiesService: CompaniesService) {}
+
   async findAll(requester: Requester, query: ListWorkLogsQueryDto) {
-    const visibleTeamIds = await this.getVisibleTeamIdsForRequester(requester);
-    if (requester.role === 'employee' && visibleTeamIds.length === 0) {
+    const accessibleMemberships =
+      await this.companiesService.resolveAccessibleCompanyMemberships(
+        requester.id,
+        query.company_id,
+      );
+
+    if (accessibleMemberships.length === 0) {
       return [];
     }
 
-    const filters = this.buildFilters(query);
-    if (requester.role === 'employee') {
-      filters.push(inArray(workLogs.teamId, visibleTeamIds));
-    }
-
-    return db
-      .select({
-        id: workLogs.id,
-        task_id: workLogs.taskId,
-        team_id: workLogs.teamId,
-        garden_id: tasks.gardenId,
-        start_time: workLogs.startTime,
-        end_time: workLogs.endTime,
-        description: workLogs.notes,
-        created_at: workLogs.createdAt,
-      })
-      .from(workLogs)
-      .innerJoin(tasks, eq(workLogs.taskId, tasks.id))
-      .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(workLogs.createdAt));
-  }
-
-  async findById(id: string, requester: Requester) {
-    const visibleTeamIds = await this.getVisibleTeamIdsForRequester(requester);
-    if (requester.role === 'employee' && visibleTeamIds.length === 0) {
-      return null;
-    }
-
-    const filters: SQL<unknown>[] = [eq(workLogs.id, id)];
-    if (requester.role === 'employee') {
-      filters.push(inArray(workLogs.teamId, visibleTeamIds));
-    }
-
+    const accessibleCompanyIds = accessibleMemberships.map(
+      (membership) => membership.company_id,
+    );
+    const adminCompanyIds = new Set(
+      accessibleMemberships
+        .filter((membership) => membership.role === 'admin')
+        .map((membership) => membership.company_id),
+    );
+    const employeeMemberships = accessibleMemberships.filter(
+      (membership) => membership.role === 'employee',
+    );
+    const filters = this.buildFilters(query, accessibleCompanyIds);
     const rows = await db
       .select({
         id: workLogs.id,
+        company_id: workLogs.companyId,
         task_id: workLogs.taskId,
         team_id: workLogs.teamId,
         garden_id: tasks.gardenId,
@@ -71,17 +58,73 @@ export class WorkLogsService {
       .from(workLogs)
       .innerJoin(tasks, eq(workLogs.taskId, tasks.id))
       .where(and(...filters))
-      .limit(1);
+      .orderBy(desc(workLogs.createdAt));
 
-    return rows[0] ?? null;
+    if (employeeMemberships.length === 0) {
+      return rows;
+    }
+
+    const visibleTeamIds = new Set(
+      await this.getVisibleTeamIdsForMemberships(
+        employeeMemberships.map((membership) => membership.id),
+        employeeMemberships.map((membership) => membership.company_id),
+      ),
+    );
+
+    return rows.filter((workLog) => {
+      if (adminCompanyIds.has(workLog.company_id)) {
+        return true;
+      }
+
+      return visibleTeamIds.has(workLog.team_id);
+    });
+  }
+
+  async findById(id: string, requester: Requester, companyId?: string) {
+    const workLog = await this.findWorkLogById(id);
+    if (!workLog) {
+      return null;
+    }
+
+    if (companyId && companyId !== workLog.company_id) {
+      return null;
+    }
+
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+      requester.id,
+      workLog.company_id,
+    );
+
+    if (requesterMembership.role === 'employee') {
+      const visibleTeamIds = await this.getVisibleTeamIdsForMemberships(
+        [requesterMembership.id],
+        [workLog.company_id],
+      );
+
+      if (!visibleTeamIds.includes(workLog.team_id)) {
+        return null;
+      }
+    }
+
+    return workLog;
   }
 
   async create(dto: CreateWorkLogDto, requester: Requester) {
     this.assertStartBeforeEnd(dto.start_time, dto.end_time);
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+      requester.id,
+      dto.company_id,
+    );
 
     const task = await this.findTask(dto.task_id);
     if (!task) {
       throw new NotFoundException('Task not found');
+    }
+
+    if (task.company_id !== dto.company_id) {
+      throw new BadRequestException('Task does not belong to this company');
     }
 
     if (!task.team_id) {
@@ -91,17 +134,14 @@ export class WorkLogsService {
       throw new BadRequestException('team_id must match task team_id');
     }
 
-    if (requester.role === 'employee') {
-      const ownEmployeeId = await this.resolveEmployeeIdFromUser(requester.id);
-      if (!ownEmployeeId) {
-        throw new ForbiddenException('Employee profile not found');
-      }
-      await this.assertEmployeeInTeam(ownEmployeeId, dto.team_id);
+    if (requesterMembership.role === 'employee') {
+      await this.assertMembershipInTeam(requesterMembership.id, dto.company_id, dto.team_id);
     }
 
     const rows = await db
       .insert(workLogs)
       .values({
+        companyId: dto.company_id,
         taskId: dto.task_id,
         teamId: dto.team_id,
         startTime: new Date(dto.start_time),
@@ -110,6 +150,7 @@ export class WorkLogsService {
       })
       .returning({
         id: workLogs.id,
+        company_id: workLogs.companyId,
         task_id: workLogs.taskId,
         team_id: workLogs.teamId,
         start_time: workLogs.startTime,
@@ -122,33 +163,35 @@ export class WorkLogsService {
   }
 
   async update(id: string, dto: UpdateWorkLogDto, requester: Requester) {
-    const existing = await db
-      .select({
-        id: workLogs.id,
-        task_id: workLogs.taskId,
-        team_id: workLogs.teamId,
-        start_time: workLogs.startTime,
-        end_time: workLogs.endTime,
-      })
-      .from(workLogs)
-      .where(eq(workLogs.id, id))
-      .limit(1);
-
-    const current = existing[0];
+    const current = await this.findWorkLogById(id);
     if (!current) {
       return null;
     }
 
-    if (requester.role === 'employee') {
-      const ownEmployeeId = await this.resolveEmployeeIdFromUser(requester.id);
-      if (!ownEmployeeId) {
-        throw new ForbiddenException('Employee profile not found');
-      }
-      await this.assertEmployeeInTeam(ownEmployeeId, current.team_id);
+    if (dto.company_id !== current.company_id) {
+      throw new BadRequestException(
+        'company_id must match the work log company_id',
+      );
     }
 
-    const startTime = dto.start_time ?? (current.start_time?.toISOString() ?? undefined);
-    const endTime = dto.end_time ?? (current.end_time?.toISOString() ?? undefined);
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+      requester.id,
+      current.company_id,
+    );
+
+    if (requesterMembership.role === 'employee') {
+      await this.assertMembershipInTeam(
+        requesterMembership.id,
+        current.company_id,
+        current.team_id,
+      );
+    }
+
+    const startTime =
+      dto.start_time ?? (current.start_time?.toISOString() ?? undefined);
+    const endTime =
+      dto.end_time ?? (current.end_time?.toISOString() ?? undefined);
     this.assertStartBeforeEnd(startTime, endTime);
 
     const setPayload: {
@@ -156,7 +199,10 @@ export class WorkLogsService {
       endTime?: Date | null;
       notes?: string;
     } = {};
-    const responsePayload: Record<string, unknown> = { id };
+    const responsePayload: Record<string, unknown> = {
+      id,
+      company_id: current.company_id,
+    };
 
     if (dto.start_time !== undefined) {
       setPayload.startTime = new Date(dto.start_time);
@@ -185,9 +231,15 @@ export class WorkLogsService {
   }
 
   async remove(id: string, requester: Requester) {
-    if (requester.role === 'employee') {
-      throw new ForbiddenException('Employees cannot delete work logs');
+    const current = await this.findWorkLogById(id);
+    if (!current) {
+      return false;
     }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     const deleted = await db
       .delete(workLogs)
@@ -196,13 +248,15 @@ export class WorkLogsService {
     return deleted.length > 0;
   }
 
-  private buildFilters(query: ListWorkLogsQueryDto) {
-    const filters: SQL<unknown>[] = [];
+  private buildFilters(query: ListWorkLogsQueryDto, companyIds: string[]) {
+    const filters: SQL<unknown>[] = [inArray(workLogs.companyId, companyIds)];
     if (query.task_id) filters.push(eq(workLogs.taskId, query.task_id));
     if (query.team_id) filters.push(eq(workLogs.teamId, query.team_id));
     if (query.garden_id) filters.push(eq(tasks.gardenId, query.garden_id));
-    if (query.start_from) filters.push(gte(workLogs.startTime, new Date(query.start_from)));
-    if (query.start_to) filters.push(lte(workLogs.startTime, new Date(query.start_to)));
+    if (query.start_from)
+      filters.push(gte(workLogs.startTime, new Date(query.start_from)));
+    if (query.start_to)
+      filters.push(lte(workLogs.startTime, new Date(query.start_to)));
     return filters;
   }
 
@@ -220,28 +274,52 @@ export class WorkLogsService {
 
   private async findTask(taskId: string) {
     const rows = await db
-      .select({ id: tasks.id, team_id: tasks.teamId })
+      .select({
+        id: tasks.id,
+        company_id: tasks.companyId,
+        team_id: tasks.teamId,
+      })
       .from(tasks)
       .where(eq(tasks.id, taskId))
       .limit(1);
     return rows[0] ?? null;
   }
 
-  private async resolveEmployeeIdFromUser(userId: string) {
+  private async findWorkLogById(id: string) {
     const rows = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(eq(employees.userId, userId))
+      .select({
+        id: workLogs.id,
+        company_id: workLogs.companyId,
+        task_id: workLogs.taskId,
+        team_id: workLogs.teamId,
+        garden_id: tasks.gardenId,
+        start_time: workLogs.startTime,
+        end_time: workLogs.endTime,
+        description: workLogs.notes,
+        created_at: workLogs.createdAt,
+      })
+      .from(workLogs)
+      .innerJoin(tasks, eq(workLogs.taskId, tasks.id))
+      .where(eq(workLogs.id, id))
       .limit(1);
-    return rows[0]?.id ?? null;
+
+    return rows[0] ?? null;
   }
 
-  private async assertEmployeeInTeam(employeeId: string, teamId: string) {
+  private async assertMembershipInTeam(
+    companyMembershipId: string,
+    companyId: string,
+    teamId: string,
+  ) {
     const teamMembership = await db
-      .select({ team_id: employeeTeams.teamId })
-      .from(employeeTeams)
+      .select({ team_id: companyMembershipTeams.teamId })
+      .from(companyMembershipTeams)
       .where(
-        and(eq(employeeTeams.employeeId, employeeId), eq(employeeTeams.teamId, teamId)),
+        and(
+          eq(companyMembershipTeams.companyMembershipId, companyMembershipId),
+          eq(companyMembershipTeams.companyId, companyId),
+          eq(companyMembershipTeams.teamId, teamId),
+        ),
       )
       .limit(1);
 
@@ -250,21 +328,27 @@ export class WorkLogsService {
     }
   }
 
-  private async getVisibleTeamIdsForRequester(requester: Requester) {
-    if (requester.role !== 'employee') {
-      return [];
-    }
-
-    const ownEmployeeId = await this.resolveEmployeeIdFromUser(requester.id);
-    if (!ownEmployeeId) {
+  private async getVisibleTeamIdsForMemberships(
+    companyMembershipIds: string[],
+    companyIds: string[],
+  ) {
+    if (companyMembershipIds.length === 0 || companyIds.length === 0) {
       return [];
     }
 
     const rows = await db
-      .select({ team_id: employeeTeams.teamId })
-      .from(employeeTeams)
-      .where(eq(employeeTeams.employeeId, ownEmployeeId));
+      .select({ team_id: companyMembershipTeams.teamId })
+      .from(companyMembershipTeams)
+      .where(
+        and(
+          inArray(
+            companyMembershipTeams.companyMembershipId,
+            companyMembershipIds,
+          ),
+          inArray(companyMembershipTeams.companyId, companyIds),
+        ),
+      );
 
-    return rows.map((row) => row.team_id);
+    return [...new Set(rows.map((row) => row.team_id))];
   }
 }

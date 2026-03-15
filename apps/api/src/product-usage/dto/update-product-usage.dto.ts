@@ -7,8 +7,9 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 
-export class UpdateProductUsageDto {
+export class UpdateProductUsageDto extends CompanyScopedBodyDto {
   @IsOptional()
   @IsUUID()
   product_id?: string;
@@ -19,7 +20,7 @@ export class UpdateProductUsageDto {
 
   @IsOptional()
   @IsUUID()
-  employee_id?: string;
+  company_membership_id?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -35,4 +36,3 @@ export class UpdateProductUsageDto {
   @IsString()
   notes?: string;
 }
-

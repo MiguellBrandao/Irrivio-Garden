@@ -9,51 +9,94 @@ import {
   text,
   time,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  role: varchar('role', { length: 50 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const companies = pgTable(
+  'companies',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 255 }).notNull(),
+    slug: varchar('slug', { length: 255 }).notNull(),
+    logoPath: varchar('logo_path', { length: 255 }),
+    faviconPath: varchar('favicon_path', { length: 255 }),
+    address: text('address').notNull(),
+    nif: varchar('nif', { length: 50 }).notNull(),
+    mobilePhone: varchar('mobile_phone', { length: 50 }).notNull(),
+    email: varchar('email', { length: 255 }).notNull(),
+    iban: varchar('iban', { length: 64 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    slugUnique: uniqueIndex('companies_slug_unique').on(table.slug),
+  }),
+);
+
 export const teams = pgTable('teams', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 150 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const employees = pgTable('employees', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  phone: varchar('phone', { length: 50 }),
-  active: boolean('active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
-
-export const employeeTeams = pgTable(
-  'employee_teams',
+export const companyMemberships = pgTable(
+  'company_memberships',
   {
-    employeeId: uuid('employee_id')
+    id: uuid('id').defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
       .notNull()
-      .references(() => employees.id, { onDelete: 'cascade' }),
+      .references(() => companies.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    role: varchar('role', { length: 50 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    phone: varchar('phone', { length: 50 }),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userCompanyUnique: uniqueIndex('company_memberships_user_company_unique').on(
+      table.userId,
+      table.companyId,
+    ),
+  }),
+);
+
+export const companyMembershipTeams = pgTable(
+  'company_membership_teams',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'cascade' }),
+    companyMembershipId: uuid('company_membership_id')
+      .notNull()
+      .references(() => companyMemberships.id, { onDelete: 'cascade' }),
     teamId: uuid('team_id')
       .notNull()
       .references(() => teams.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.employeeId, table.teamId] }),
+    pk: primaryKey({ columns: [table.companyMembershipId, table.teamId] }),
   }),
 );
 
 export const gardens = pgTable('gardens', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   clientName: varchar('client_name', { length: 255 }).notNull(),
   address: text('address').notNull(),
   phone: varchar('phone', { length: 50 }),
@@ -77,6 +120,9 @@ export const taskTypeEnum = pgEnum('task_type_enum', [
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   gardenId: uuid('garden_id')
     .notNull()
     .references(() => gardens.id, { onDelete: 'cascade' }),
@@ -91,6 +137,9 @@ export const tasks = pgTable('tasks', {
 
 export const workLogs = pgTable('work_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   taskId: uuid('task_id')
     .notNull()
     .references(() => tasks.id, { onDelete: 'cascade' }),
@@ -117,6 +166,9 @@ export const productUnitEnum = pgEnum('product_unit_enum', [
 
 export const products = pgTable('products', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   unit: productUnitEnum('unit').notNull(),
   stockQuantity: numeric('stock_quantity', { precision: 10, scale: 2 })
@@ -127,15 +179,21 @@ export const products = pgTable('products', {
 
 export const productUsage = pgTable('product_usage', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   productId: uuid('product_id')
     .notNull()
     .references(() => products.id, { onDelete: 'cascade' }),
   gardenId: uuid('garden_id')
     .notNull()
     .references(() => gardens.id, { onDelete: 'cascade' }),
-  employeeId: uuid('employee_id').references(() => employees.id, {
+  companyMembershipId: uuid('company_membership_id').references(
+    () => companyMemberships.id,
+    {
     onDelete: 'set null',
-  }),
+    },
+  ),
   quantity: numeric('quantity', { precision: 10, scale: 2 }).notNull(),
   date: date('date').notNull(),
   notes: text('notes'),
@@ -143,6 +201,9 @@ export const productUsage = pgTable('product_usage', {
 
 export const payments = pgTable('payments', {
   id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
   gardenId: uuid('garden_id')
     .notNull()
     .references(() => gardens.id, { onDelete: 'cascade' }),
@@ -155,10 +216,19 @@ export const payments = pgTable('payments', {
 
 export const quotes = pgTable('quotes', {
   id: uuid('id').defaultRandom().primaryKey(),
-  clientName: varchar('client_name', { length: 255 }).notNull(),
-  address: text('address').notNull(),
-  description: text('description').notNull(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  gardenId: uuid('garden_id')
+    .notNull()
+    .references(() => gardens.id, { onDelete: 'cascade' }),
+  services: text('services')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
   price: numeric('price', { precision: 10, scale: 2 }).notNull(),
-  status: varchar('status', { length: 50 }).default('draft').notNull(),
+  validUntil: date('valid_until')
+    .notNull()
+    .default(sql`(now() + interval '1 month')::date`),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

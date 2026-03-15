@@ -1,8 +1,9 @@
 import { Transform } from 'class-transformer';
 import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 import { PRODUCT_UNITS, type ProductUnit } from '../products.constants';
 
-export class UpdateProductDto {
+export class UpdateProductDto extends CompanyScopedBodyDto {
   @IsOptional()
   @IsString()
   name?: string;

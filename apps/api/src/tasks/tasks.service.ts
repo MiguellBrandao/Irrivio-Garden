@@ -1,12 +1,17 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
+import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
-import { employeeTeams, employees, gardens, tasks, teams } from '../db/schema';
+import {
+  companyMembershipTeams,
+  gardens,
+  tasks,
+  teams,
+} from '../db/schema';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -14,77 +19,39 @@ import type { TaskType } from './tasks.constants';
 
 type Requester = {
   id: string;
-  role: 'admin' | 'employee';
 };
 
 @Injectable()
 export class TasksService {
+  constructor(private readonly companiesService: CompaniesService) {}
+
   async findAll(requester: Requester, query: ListTasksQueryDto) {
-    const employee = requester.role === 'employee'
-      ? await this.findEmployeeByUserId(requester.id)
-      : null;
+    const accessibleMemberships =
+      await this.companiesService.resolveAccessibleCompanyMemberships(
+        requester.id,
+        query.company_id,
+      );
 
-    if (requester.role === 'employee' && !employee) {
+    if (accessibleMemberships.length === 0) {
       return [];
     }
 
-    const visibleTeamIds =
-      requester.role === 'employee'
-        ? await this.getVisibleTeamIdsForEmployee(employee!.id)
-        : [];
-
-    if (requester.role === 'employee' && visibleTeamIds.length === 0) {
-      return [];
-    }
-
-    const filters = this.buildFilters(query);
-
-    if (requester.role === 'employee') {
-      filters.push(inArray(tasks.teamId, visibleTeamIds));
-    }
-
-    return db
-      .select({
-        id: tasks.id,
-        garden_id: tasks.gardenId,
-        team_id: tasks.teamId,
-        date: tasks.date,
-        start_time: tasks.startTime,
-        end_time: tasks.endTime,
-        task_type: tasks.taskType,
-        description: tasks.description,
-        created_at: tasks.createdAt,
-      })
-      .from(tasks)
-      .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(tasks.date), desc(tasks.startTime), desc(tasks.createdAt));
-  }
-
-  async findById(id: string, requester: Requester) {
-    const employee = requester.role === 'employee'
-      ? await this.findEmployeeByUserId(requester.id)
-      : null;
-
-    if (requester.role === 'employee' && !employee) {
-      return null;
-    }
-
-    const visibleTeamIds =
-      requester.role === 'employee'
-        ? await this.getVisibleTeamIdsForEmployee(employee!.id)
-        : [];
-
-    const filters = [eq(tasks.id, id)];
-    if (requester.role === 'employee') {
-      if (visibleTeamIds.length === 0) {
-        return null;
-      }
-      filters.push(inArray(tasks.teamId, visibleTeamIds));
-    }
-
+    const accessibleCompanyIds = accessibleMemberships.map(
+      (membership) => membership.company_id,
+    );
+    const adminCompanyIds = new Set(
+      accessibleMemberships
+        .filter((membership) => membership.role === 'admin')
+        .map((membership) => membership.company_id),
+    );
+    const employeeMemberships = accessibleMemberships.filter(
+      (membership) => membership.role === 'employee',
+    );
+    const filters = this.buildFilters(query, accessibleCompanyIds);
     const rows = await db
       .select({
         id: tasks.id,
+        company_id: tasks.companyId,
         garden_id: tasks.gardenId,
         team_id: tasks.teamId,
         date: tasks.date,
@@ -96,19 +63,67 @@ export class TasksService {
       })
       .from(tasks)
       .where(and(...filters))
-      .limit(1);
+      .orderBy(desc(tasks.date), desc(tasks.startTime), desc(tasks.createdAt));
 
-    return rows[0] ?? null;
+    if (employeeMemberships.length === 0) {
+      return rows;
+    }
+
+    const visibleTeamIds = new Set(
+      await this.getVisibleTeamIdsForMemberships(
+        employeeMemberships.map((membership) => membership.id),
+        employeeMemberships.map((membership) => membership.company_id),
+      ),
+    );
+
+    return rows.filter((task) => {
+      if (adminCompanyIds.has(task.company_id)) {
+        return true;
+      }
+
+      return task.team_id !== null && visibleTeamIds.has(task.team_id);
+    });
+  }
+
+  async findById(id: string, requester: Requester, companyId?: string) {
+    const task = await this.findTaskById(id);
+    if (!task) {
+      return null;
+    }
+
+    if (companyId && companyId !== task.company_id) {
+      return null;
+    }
+
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+      requester.id,
+      task.company_id,
+    );
+
+    if (requesterMembership.role === 'employee') {
+      const visibleTeamIds = await this.getVisibleTeamIdsForMemberships(
+        [requesterMembership.id],
+        [task.company_id],
+      );
+
+      if (!task.team_id || !visibleTeamIds.includes(task.team_id)) {
+        return null;
+      }
+    }
+
+    return task;
   }
 
   async create(dto: CreateTaskDto, requester: Requester) {
-    this.ensureAdmin(requester);
-    await this.assertGardenExists(dto.garden_id);
-    await this.assertTeamExists(dto.team_id);
+    await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
+    await this.assertGardenExistsInCompany(dto.garden_id, dto.company_id);
+    await this.assertTeamExistsInCompany(dto.team_id, dto.company_id);
 
     const rows = await db
       .insert(tasks)
       .values({
+        companyId: dto.company_id,
         gardenId: dto.garden_id,
         teamId: dto.team_id,
         date: dto.date,
@@ -119,6 +134,7 @@ export class TasksService {
       })
       .returning({
         id: tasks.id,
+        company_id: tasks.companyId,
         garden_id: tasks.gardenId,
         team_id: tasks.teamId,
         date: tasks.date,
@@ -133,13 +149,25 @@ export class TasksService {
   }
 
   async update(id: string, dto: UpdateTaskDto, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findTaskById(id);
+    if (!current) {
+      return null;
+    }
+
+    if (dto.company_id !== current.company_id) {
+      throw new BadRequestException('company_id must match the task company_id');
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     if (dto.garden_id !== undefined) {
-      await this.assertGardenExists(dto.garden_id);
+      await this.assertGardenExistsInCompany(dto.garden_id, current.company_id);
     }
     if (dto.team_id !== undefined) {
-      await this.assertTeamExists(dto.team_id);
+      await this.assertTeamExistsInCompany(dto.team_id, current.company_id);
     }
 
     const setPayload: {
@@ -151,7 +179,10 @@ export class TasksService {
       taskType?: TaskType;
       description?: string;
     } = {};
-    const responsePayload: Record<string, unknown> = { id };
+    const responsePayload: Record<string, unknown> = {
+      id,
+      company_id: current.company_id,
+    };
 
     if (dto.garden_id !== undefined) {
       setPayload.gardenId = dto.garden_id;
@@ -196,7 +227,15 @@ export class TasksService {
   }
 
   async remove(id: string, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findTaskById(id);
+    if (!current) {
+      return false;
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     const deleted = await db
       .delete(tasks)
@@ -206,8 +245,8 @@ export class TasksService {
     return deleted.length > 0;
   }
 
-  private buildFilters(query: ListTasksQueryDto) {
-    const filters: SQL<unknown>[] = [];
+  private buildFilters(query: ListTasksQueryDto, companyIds: string[]) {
+    const filters: SQL<unknown>[] = [inArray(tasks.companyId, companyIds)];
     if (query.garden_id) filters.push(eq(tasks.gardenId, query.garden_id));
     if (query.team_id) filters.push(eq(tasks.teamId, query.team_id));
     if (query.date_from) filters.push(gte(tasks.date, query.date_from));
@@ -215,49 +254,70 @@ export class TasksService {
     return filters;
   }
 
-  private ensureAdmin(requester: Requester) {
-    if (requester.role !== 'admin') {
-      throw new ForbiddenException('Only admins can manage tasks');
-    }
-  }
-
-  private async assertGardenExists(gardenId: string) {
+  private async assertGardenExistsInCompany(gardenId: string, companyId: string) {
     const rows = await db
       .select({ id: gardens.id })
       .from(gardens)
-      .where(eq(gardens.id, gardenId))
+      .where(and(eq(gardens.id, gardenId), eq(gardens.companyId, companyId)))
       .limit(1);
     if (!rows[0]) {
       throw new NotFoundException('Garden not found');
     }
   }
 
-  private async assertTeamExists(teamId: string) {
+  private async assertTeamExistsInCompany(teamId: string, companyId: string) {
     const rows = await db
       .select({ id: teams.id })
       .from(teams)
-      .where(eq(teams.id, teamId))
+      .where(and(eq(teams.id, teamId), eq(teams.companyId, companyId)))
       .limit(1);
     if (!rows[0]) {
       throw new NotFoundException('Team not found');
     }
   }
 
-  private async findEmployeeByUserId(userId: string) {
+  private async findTaskById(id: string) {
     const rows = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(eq(employees.userId, userId))
+      .select({
+        id: tasks.id,
+        company_id: tasks.companyId,
+        garden_id: tasks.gardenId,
+        team_id: tasks.teamId,
+        date: tasks.date,
+        start_time: tasks.startTime,
+        end_time: tasks.endTime,
+        task_type: tasks.taskType,
+        description: tasks.description,
+        created_at: tasks.createdAt,
+      })
+      .from(tasks)
+      .where(eq(tasks.id, id))
       .limit(1);
+
     return rows[0] ?? null;
   }
 
-  private async getVisibleTeamIdsForEmployee(employeeId: string) {
-    const rows = await db
-      .select({ team_id: employeeTeams.teamId })
-      .from(employeeTeams)
-      .where(eq(employeeTeams.employeeId, employeeId));
+  private async getVisibleTeamIdsForMemberships(
+    companyMembershipIds: string[],
+    companyIds: string[],
+  ) {
+    if (companyMembershipIds.length === 0 || companyIds.length === 0) {
+      return [];
+    }
 
-    return rows.map((row) => row.team_id);
+    const rows = await db
+      .select({ team_id: companyMembershipTeams.teamId })
+      .from(companyMembershipTeams)
+      .where(
+        and(
+          inArray(
+            companyMembershipTeams.companyMembershipId,
+            companyMembershipIds,
+          ),
+          inArray(companyMembershipTeams.companyId, companyIds),
+        ),
+      );
+
+    return [...new Set(rows.map((row) => row.team_id))];
   }
 }

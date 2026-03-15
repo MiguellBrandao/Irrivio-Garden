@@ -9,11 +9,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QuotesService } from './quotes.service';
@@ -24,13 +26,35 @@ export class QuotesController {
   constructor(private readonly quotesService: QuotesService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
-  findAll(@Req() request: Request) {
-    return this.quotesService.findAll(this.requesterFrom(request));
+  findAll(@Req() request: Request, @Query() query: CompanyScopedQueryDto) {
+    return this.quotesService.findAll(
+      this.requesterFrom(request),
+      query.company_id,
+    );
+  }
+
+  @Get(':id')
+  async findById(
+    @Req() request: Request,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: CompanyScopedQueryDto,
+  ) {
+    const quote = await this.quotesService.findById(
+      id,
+      this.requesterFrom(request),
+      query.company_id,
+    );
+
+    if (!quote) {
+      throw new NotFoundException('Quote not found');
+    }
+
+    return quote;
   }
 
   @Post()
@@ -70,4 +94,3 @@ export class QuotesController {
     }
   }
 }
-

@@ -1,196 +1,174 @@
-# Visão Geral das Entidades
+# Database Schema
 
-O sistema é composto pelas seguintes entidades principais:
+## Tenant rules
 
-- Users (login)
-- Employees (funcionários)
-- Teams (equipas)
-- Gardens (clientes/jardins)
-- Tasks (trabalhos no calendário)
-- Work Logs (registo de trabalho)
-- Products (produtos)
-- Product Usage (produtos usados)
-- Payments (pagamentos dos clientes)
-- Quotes (orçamentos)
+- `companies` is the tenant table.
+- `users` is global and does not have `company_id`.
+- Every business table has `company_id`.
+- A single auth user can belong to multiple companies through multiple rows in `company_memberships`.
 
----
+## companies
 
-# 1. Users
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `name` | `varchar(255)` | Company name |
+| `slug` | `varchar(255)` | Unique slug |
+| `logo_path` | `varchar(255)` | Relative path for the company logo, nullable |
+| `favicon_path` | `varchar(255)` | Relative path for the company favicon, nullable |
+| `address` | `text` | Billing/contact address |
+| `nif` | `varchar(50)` | Tax number |
+| `mobile_phone` | `varchar(50)` | Mobile phone |
+| `email` | `varchar(255)` | Contact email |
+| `iban` | `varchar(64)` | Bank account |
+| `created_at` | `timestamp` | Creation date |
 
-Utilizadores que podem fazer login no sistema.
+Indexes:
 
-users
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| email | varchar | Email de login |
-| password_hash | varchar | Password encriptada |
-| role | varchar | admin / employee |
-| created_at | timestamp | Data de criação |
-```
+- Unique index on `slug`
 
-# 2. Employees
+## users
 
-Funcionários da empresa.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `email` | `varchar(255)` | Login email |
+| `password_hash` | `varchar(255)` | Password hash |
+| `created_at` | `timestamp` | Creation date |
 
-employees
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| user_id | uuid | Conta associada |
-| name | varchar | Nome do funcionário |
-| phone | varchar | Telefone |
-| active | boolean | Se está ativo |
-| created_at | timestamp | Data de criação |
-```
+## company_memberships
 
-employee_teams
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| employee_id | uuid | Funcionário |
-| team_id | uuid | Equipa |
-| created_at | timestamp | Data de criação |
-```
+Represents a user membership inside a specific company.
 
-# 3. Teams
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `user_id` | `uuid` | FK -> `users.id`, nullable |
+| `role` | `varchar(50)` | `admin` or `employee` |
+| `name` | `varchar(255)` | Member display name |
+| `phone` | `varchar(50)` | Phone number, nullable |
+| `active` | `boolean` | Membership status |
+| `created_at` | `timestamp` | Creation date |
 
-Equipas de trabalho.
+Indexes and constraints:
 
-teams
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| name | varchar | Nome da equipa |
-| created_at | timestamp | Data criação |
-```
+- Unique index on `("user_id", "company_id")`
 
-# 4. Gardens (Clientes)
+## company_membership_teams
 
-Cada jardim corresponde a um cliente com contrato.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `company_membership_id` | `uuid` | FK -> `company_memberships.id` |
+| `team_id` | `uuid` | FK -> `teams.id` |
+| `created_at` | `timestamp` | Creation date |
 
-gardens
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| client_name | varchar | Nome do cliente |
-| address | text | Morada |
-| phone | varchar | Contacto |
-| monthly_price | numeric | Valor mensal |
-| maintenance_frequency | varchar | weekly / biweekly / monthly |
-| start_date | date | Data início contrato |
-| billing_day | integer | Dia de pagamento esperado |
-| status | varchar | active / paused / cancelled |
-| notes | text | Observações |
-| created_at | timestamp | Data criação |
-```
+Constraints:
 
-# 5. Tasks (Trabalhos no Calendário)
+- Composite primary key on `("company_membership_id", "team_id")`
 
-Representa um trabalho planeado.
+## teams
 
-tasks
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| garden_id | uuid | Jardim |
-| team_id | uuid | Equipa |
-| date | date | Data |
-| start_time | time | Hora início prevista |
-| end_time | time | Hora fim prevista |
-| task_type | enum | maintenance / pruning / cleaning / installation / inspection / emergency |
-| description | text | Descrição |
-| created_at | timestamp | Data criação |
-```
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `name` | `varchar(150)` | Team name |
+| `created_at` | `timestamp` | Creation date |
 
-# 6. Work Logs
+## gardens
 
-Registo real do trabalho executado.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `client_name` | `varchar(255)` | Client name |
+| `address` | `text` | Service address |
+| `phone` | `varchar(50)` | Contact phone, nullable |
+| `monthly_price` | `numeric(10,2)` | Contract value, nullable |
+| `maintenance_frequency` | `varchar(50)` | `weekly`, `biweekly`, `monthly`, nullable |
+| `start_date` | `date` | Contract start date, nullable |
+| `billing_day` | `integer` | Billing day, nullable |
+| `status` | `varchar(50)` | Default `active` |
+| `notes` | `text` | Internal notes, nullable |
+| `created_at` | `timestamp` | Creation date |
 
-work_logs
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| task_id | uuid | Trabalho |
-| employee_id | uuid | Funcionário |
-| start_time | timestamp | Hora início |
-| end_time | timestamp | Hora fim |
-| notes | text | Observações |
-| created_at | timestamp | Data criação |
-```
+## tasks
 
-# 7. Products
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `garden_id` | `uuid` | FK -> `gardens.id` |
+| `team_id` | `uuid` | FK -> `teams.id`, nullable |
+| `date` | `date` | Scheduled date |
+| `start_time` | `time` | Planned start time, nullable |
+| `end_time` | `time` | Planned end time, nullable |
+| `task_type` | `enum` | `maintenance`, `pruning`, `cleaning`, `installation`, `inspection`, `emergency` |
+| `description` | `text` | Notes, nullable |
+| `created_at` | `timestamp` | Creation date |
 
-Produtos utilizados pela empresa.
+## work_logs
 
-products
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| name | varchar | Nome do produto |
-| unit | varchar | kg / L / units |
-| stock_quantity | numeric | Quantidade em stock |
-| created_at | timestamp | Data criação |
-```
+The work log is tied to a task and a team. It does not store `company_membership_id`.
 
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `task_id` | `uuid` | FK -> `tasks.id` |
+| `team_id` | `uuid` | FK -> `teams.id` |
+| `start_time` | `timestamp` | Real start time, nullable |
+| `end_time` | `timestamp` | Real end time, nullable |
+| `notes` | `text` | Internal notes, nullable |
+| `created_at` | `timestamp` | Creation date |
 
-# 8. Product Usage
+## products
 
-Registo de produtos usados em jardins.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `name` | `varchar(255)` | Product name |
+| `unit` | `enum` | `unit`, `kg`, `g`, `l`, `ml`, `m`, `m2`, `m3`, `pack` |
+| `stock_quantity` | `numeric(10,2)` | Default `0` |
+| `created_at` | `timestamp` | Creation date |
 
-product_usage
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| product_id | uuid | Produto |
-| garden_id | uuid | Jardim |
-| employee_id | uuid | Funcionário |
-| quantity | numeric | Quantidade usada |
-| date | date | Data |
-| notes | text | Notas |
-```
+## product_usage
 
-# 9. Payments
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `product_id` | `uuid` | FK -> `products.id` |
+| `garden_id` | `uuid` | FK -> `gardens.id` |
+| `company_membership_id` | `uuid` | FK -> `company_memberships.id`, nullable |
+| `quantity` | `numeric(10,2)` | Used quantity |
+| `date` | `date` | Usage date |
+| `notes` | `text` | Notes, nullable |
 
-Pagamentos feitos pelos clientes.
+## payments
 
-Suporta **pagamentos parciais**.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `garden_id` | `uuid` | FK -> `gardens.id` |
+| `month` | `integer` | 1..12 |
+| `year` | `integer` | Billing year |
+| `amount` | `numeric(10,2)` | Paid amount |
+| `paid_at` | `timestamp` | Payment timestamp, nullable |
+| `notes` | `text` | Notes, nullable |
 
-payments
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| garden_id | uuid | Cliente |
-| month | integer | Mês |
-| year | integer | Ano |
-| amount | numeric | Valor pago |
-| paid_at | timestamp | Data pagamento |
-| notes | text | Observações |
+## quotes
 
-```
-
-# 10. Quotes (Orçamentos)
-
-Orçamentos para novos clientes.
-
-quotes
-```
-| Campo | Tipo | Descrição |
-|------|------|-----------|
-| id | uuid | Primary key |
-| client_name | varchar | Cliente |
-| address | text | Morada |
-| description | text | Descrição |
-| price | numeric | Valor |
-| status | varchar | draft / sent / accepted / rejected |
-| created_at | timestamp | Data criação |
-```
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `garden_id` | `uuid` | FK -> `gardens.id` |
+| `services` | `text[]` | Array of service lines |
+| `price` | `numeric(10,2)` | Proposed price |
+| `valid_until` | `date` | Default is one month after creation |
+| `created_at` | `timestamp` | Creation date |

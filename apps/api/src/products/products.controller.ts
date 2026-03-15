@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -26,18 +27,26 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
-  findAll(@Query() query: ListProductsQueryDto) {
-    return this.productsService.findAll(query);
+  findAll(@Req() request: Request, @Query() query: ListProductsQueryDto) {
+    return this.productsService.findAll(this.requesterFrom(request), query);
   }
 
   @Get(':id')
-  async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    const product = await this.productsService.findById(id);
+  async findOne(
+    @Req() request: Request,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: CompanyScopedQueryDto,
+  ) {
+    const product = await this.productsService.findById(
+      id,
+      this.requesterFrom(request),
+      query.company_id,
+    );
     if (!product) {
       throw new NotFoundException('Product not found');
     }
@@ -81,4 +90,3 @@ export class ProductsController {
     }
   }
 }
-

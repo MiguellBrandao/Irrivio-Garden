@@ -2,20 +2,22 @@
   "info": {
     "_postman_id": "4e32d733-d935-4a7d-85ee-407d4fcb78f4",
     "name": "Floripa Intranet API",
-    "description": "Collection gerada a partir de docs/api-endpoints.md",
+    "description": "Collection aligned with the current company-scoped API contract.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3001/api" },
+    { "key": "baseUrl", "value": "http://localhost:3001" },
     { "key": "accessToken", "value": "" },
     { "key": "refreshTokenCookie", "value": "refresh_token=<paste_token_here>" },
-    { "key": "employeeId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "companyId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "companyMembershipId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "teamId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "teamId2", "value": "00000000-0000-0000-0000-000000000002" },
     { "key": "gardenId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "taskId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "worklogId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "productId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "productUsageId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "paymentId", "value": "00000000-0000-0000-0000-000000000001" },
     { "key": "quoteId", "value": "00000000-0000-0000-0000-000000000001" }
   ],
@@ -33,7 +35,7 @@
               "raw": "{\n  \"email\": \"miguellbwork@gmail.com\",\n  \"password\": \"Nodeapp2107.\"\n}"
             },
             "url": "{{baseUrl}}/auth/login",
-            "description": "Expected 200: accessToken + user. Refresh token via HttpOnly cookie."
+            "description": "Returns accessToken, user and accessible companies. Each company includes branding, contact settings and the role in that company."
           },
           "event": [
             {
@@ -44,6 +46,7 @@
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
                   "  if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "  if (Array.isArray(json.companies) && json.companies[0]?.id) pm.collectionVariables.set('companyId', json.companies[0].id);",
                   "}"
                 ]
               }
@@ -55,8 +58,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Cookie", "value": "{{refreshTokenCookie}}" }],
-            "url": "{{baseUrl}}/auth/refresh",
-            "description": "Expected 200: new accessToken."
+            "url": "{{baseUrl}}/auth/refresh"
           }
         },
         {
@@ -72,47 +74,31 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/auth/me"
-          }
+            "url": "{{baseUrl}}/auth/me",
+            "description": "Returns the authenticated user and accessible companies. Each company includes branding, contact settings and the role in that company."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (Array.isArray(json.companies) && json.companies[0]?.id) pm.collectionVariables.set('companyId', json.companies[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Employees",
+      "name": "Users",
       "item": [
         {
-          "name": "GET /employees",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/employees"
-          }
-        },
-        {
-          "name": "POST /employees",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"new.employee@floripa.local\",\n  \"password\": \"Nodeapp2107.\",\n  \"role\": \"employee\",\n  \"name\": \"New Employee\",\n  \"phone\": \"912345678\",\n  \"team_ids\": [\"{{teamId}}\", \"{{teamId2}}\"],\n  \"active\": true\n}"
-            },
-            "url": "{{baseUrl}}/employees"
-          }
-        },
-        {
-          "name": "GET /employees/:id",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/employees/{{employeeId}}"
-          }
-        },
-        {
-          "name": "PATCH /employees/:id",
+          "name": "PATCH /users/me",
           "request": {
             "method": "PATCH",
             "header": [
@@ -121,17 +107,68 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Employee\",\n  \"phone\": \"919999999\",\n  \"team_ids\": [\"{{teamId}}\"]\n}"
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"password\": \"Nodeapp2107.\"\n}"
             },
-            "url": "{{baseUrl}}/employees/{{employeeId}}"
+            "url": "{{baseUrl}}/users/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Company Memberships",
+      "item": [
+        {
+          "name": "GET /company-memberships",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/company-memberships?company_id={{companyId}}"
           }
         },
         {
-          "name": "DELETE /employees/:id",
+          "name": "POST /company-memberships",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"email\": \"new.member@floripa.local\",\n  \"password\": \"Nodeapp2107.\",\n  \"role\": \"employee\",\n  \"name\": \"New Member\",\n  \"phone\": \"912345678\",\n  \"team_ids\": [\"{{teamId}}\", \"{{teamId2}}\"],\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/company-memberships"
+          }
+        },
+        {
+          "name": "GET /company-memberships/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/company-memberships/{{companyMembershipId}}?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "PATCH /company-memberships/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"role\": \"admin\",\n  \"name\": \"Updated Member\",\n  \"phone\": \"919999999\",\n  \"team_ids\": [\"{{teamId}}\"]\n}"
+            },
+            "url": "{{baseUrl}}/company-memberships/{{companyMembershipId}}"
+          }
+        },
+        {
+          "name": "DELETE /company-memberships/:id",
           "request": {
             "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/employees/{{employeeId}}"
+            "url": "{{baseUrl}}/company-memberships/{{companyMembershipId}}"
           }
         }
       ]
@@ -144,7 +181,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/teams"
+            "url": "{{baseUrl}}/teams?company_id={{companyId}}"
           }
         },
         {
@@ -152,7 +189,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/teams/{{teamId}}"
+            "url": "{{baseUrl}}/teams/{{teamId}}?company_id={{companyId}}"
           }
         },
         {
@@ -163,7 +200,10 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Team A\"\n}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"name\": \"Team A\"\n}"
+            },
             "url": "{{baseUrl}}/teams"
           }
         },
@@ -175,7 +215,10 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Team A - Updated\"\n}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"name\": \"Team A - Updated\"\n}"
+            },
             "url": "{{baseUrl}}/teams/{{teamId}}"
           }
         },
@@ -197,7 +240,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/gardens"
+            "url": "{{baseUrl}}/gardens?company_id={{companyId}}"
           }
         },
         {
@@ -210,7 +253,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"client_name\": \"Joao Silva\",\n  \"address\": \"Rua A, Porto\",\n  \"phone\": \"912345678\",\n  \"monthly_price\": 120,\n  \"maintenance_frequency\": \"weekly\",\n  \"start_date\": \"2026-03-01\",\n  \"billing_day\": 5,\n  \"status\": \"active\",\n  \"notes\": \"Cliente premium\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"client_name\": \"Joao Silva\",\n  \"address\": \"Rua A, Porto\",\n  \"phone\": \"912345678\",\n  \"monthly_price\": 120,\n  \"maintenance_frequency\": \"weekly\",\n  \"start_date\": \"2026-03-01\",\n  \"billing_day\": 5,\n  \"status\": \"active\",\n  \"notes\": \"Cliente premium\"\n}"
             },
             "url": "{{baseUrl}}/gardens"
           }
@@ -220,7 +263,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/gardens/{{gardenId}}"
+            "url": "{{baseUrl}}/gardens/{{gardenId}}?company_id={{companyId}}"
           }
         },
         {
@@ -233,7 +276,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"paused\",\n  \"notes\": \"Pausado por 1 mes\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"status\": \"paused\",\n  \"notes\": \"Pausado por 1 mes\"\n}"
             },
             "url": "{{baseUrl}}/gardens/{{gardenId}}"
           }
@@ -256,7 +299,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/tasks"
+            "url": "{{baseUrl}}/tasks?company_id={{companyId}}"
           }
         },
         {
@@ -269,7 +312,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"garden_id\": \"{{gardenId}}\",\n  \"team_id\": \"{{teamId}}\",\n  \"date\": \"2026-03-14\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"11:00:00\",\n  \"task_type\": \"maintenance\",\n  \"notes\": \"Levar fertilizante\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"garden_id\": \"{{gardenId}}\",\n  \"team_id\": \"{{teamId}}\",\n  \"date\": \"2026-03-14\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"11:00:00\",\n  \"task_type\": \"maintenance\",\n  \"description\": \"Levar fertilizante\"\n}"
             },
             "url": "{{baseUrl}}/tasks"
           }
@@ -279,7 +322,7 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/tasks/{{taskId}}"
+            "url": "{{baseUrl}}/tasks/{{taskId}}?company_id={{companyId}}"
           }
         },
         {
@@ -290,7 +333,10 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"start_time\": \"09:00:00\",\n  \"notes\": \"Atraso por chuva\"\n}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"start_time\": \"09:00:00\",\n  \"description\": \"Atraso por chuva\"\n}"
+            },
             "url": "{{baseUrl}}/tasks/{{taskId}}"
           }
         },
@@ -317,7 +363,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"task_id\": \"{{taskId}}\",\n  \"employee_id\": \"{{employeeId}}\",\n  \"start_time\": \"2026-03-14T08:00:00.000Z\",\n  \"end_time\": \"2026-03-14T10:30:00.000Z\",\n  \"notes\": \"Concluido sem incidentes\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"task_id\": \"{{taskId}}\",\n  \"team_id\": \"{{teamId}}\",\n  \"start_time\": \"2026-03-14T08:00:00.000Z\",\n  \"end_time\": \"2026-03-14T10:30:00.000Z\",\n  \"description\": \"Concluido sem incidentes\"\n}"
             },
             "url": "{{baseUrl}}/worklogs"
           }
@@ -327,13 +373,36 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/worklogs"
+            "url": "{{baseUrl}}/worklogs?company_id={{companyId}}"
           }
         },
         {
           "name": "GET /worklogs/:id",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/worklogs/{{worklogId}}?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "PATCH /worklogs/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"end_time\": \"2026-03-14T11:00:00.000Z\",\n  \"description\": \"Finalizado com atraso\"\n}"
+            },
+            "url": "{{baseUrl}}/worklogs/{{worklogId}}"
+          }
+        },
+        {
+          "name": "DELETE /worklogs/:id",
+          "request": {
+            "method": "DELETE",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": "{{baseUrl}}/worklogs/{{worklogId}}"
           }
@@ -348,7 +417,15 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/products"
+            "url": "{{baseUrl}}/products?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "GET /products/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/products/{{productId}}?company_id={{companyId}}"
           }
         },
         {
@@ -361,7 +438,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Fertilizante X\",\n  \"unit\": \"kg\",\n  \"stock_quantity\": 25\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"name\": \"Fertilizante X\",\n  \"unit\": \"kg\",\n  \"stock_quantity\": 25\n}"
             },
             "url": "{{baseUrl}}/products"
           }
@@ -374,15 +451,10 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"stock_quantity\": 18\n}" },
-            "url": "{{baseUrl}}/products/{{productId}}"
-          }
-        },
-        {
-          "name": "DELETE /products/:id",
-          "request": {
-            "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"stock_quantity\": 18\n}"
+            },
             "url": "{{baseUrl}}/products/{{productId}}"
           }
         }
@@ -401,7 +473,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"product_id\": \"{{productId}}\",\n  \"garden_id\": \"{{gardenId}}\",\n  \"employee_id\": \"{{employeeId}}\",\n  \"quantity\": 2.5,\n  \"date\": \"2026-03-14\",\n  \"notes\": \"Aplicacao semanal\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"product_id\": \"{{productId}}\",\n  \"garden_id\": \"{{gardenId}}\",\n  \"company_membership_id\": \"{{companyMembershipId}}\",\n  \"quantity\": 2.5,\n  \"date\": \"2026-03-14\",\n  \"notes\": \"Aplicacao semanal\"\n}"
             },
             "url": "{{baseUrl}}/product-usage"
           }
@@ -411,7 +483,38 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/product-usage"
+            "url": "{{baseUrl}}/product-usage?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "GET /product-usage/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/product-usage/{{productUsageId}}?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "PATCH /product-usage/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"quantity\": 3.5,\n  \"notes\": \"Aplicacao reforcada\"\n}"
+            },
+            "url": "{{baseUrl}}/product-usage/{{productUsageId}}"
+          }
+        },
+        {
+          "name": "DELETE /product-usage/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/product-usage/{{productUsageId}}"
           }
         }
       ]
@@ -424,7 +527,15 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/payments"
+            "url": "{{baseUrl}}/payments?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "GET /payments/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/payments/{{paymentId}}?company_id={{companyId}}"
           }
         },
         {
@@ -437,7 +548,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"garden_id\": \"{{gardenId}}\",\n  \"month\": 3,\n  \"year\": 2026,\n  \"amount\": 120,\n  \"paid_at\": \"2026-03-10T12:00:00.000Z\",\n  \"notes\": \"Pago por transferencia\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"garden_id\": \"{{gardenId}}\",\n  \"month\": 3,\n  \"year\": 2026,\n  \"amount\": 120,\n  \"paid_at\": \"2026-03-10T12:00:00.000Z\",\n  \"notes\": \"Pago por transferencia\"\n}"
             },
             "url": "{{baseUrl}}/payments"
           }
@@ -452,8 +563,16 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 90,\n  \"notes\": \"Pagamento parcial\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"amount\": 90,\n  \"notes\": \"Pagamento parcial\"\n}"
             },
+            "url": "{{baseUrl}}/payments/{{paymentId}}"
+          }
+        },
+        {
+          "name": "DELETE /payments/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": "{{baseUrl}}/payments/{{paymentId}}"
           }
         }
@@ -467,7 +586,15 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
-            "url": "{{baseUrl}}/quotes"
+            "url": "{{baseUrl}}/quotes?company_id={{companyId}}"
+          }
+        },
+        {
+          "name": "GET /quotes/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/quotes/{{quoteId}}?company_id={{companyId}}"
           }
         },
         {
@@ -480,7 +607,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"client_name\": \"Maria Costa\",\n  \"address\": \"Rua B, Braga\",\n  \"description\": \"Manutencao mensal\",\n  \"price\": 180,\n  \"status\": \"draft\"\n}"
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"garden_id\": \"{{gardenId}}\",\n  \"services\": [\n    \"Limpeza das ervas com rocadora\",\n    \"Aplicacao de herbicidas nas ervas\"\n  ],\n  \"price\": 240,\n  \"valid_until\": \"2026-04-15\"\n}"
             },
             "url": "{{baseUrl}}/quotes"
           }
@@ -493,7 +620,10 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"status\": \"sent\"\n}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{companyId}}\",\n  \"services\": [\n    \"Limpeza das ervas com rocadora\",\n    \"Aplicacao de herbicidas nas ervas\",\n    \"Podas de arvores e arbustos\"\n  ],\n  \"price\": 260,\n  \"valid_until\": \"2026-04-30\"\n}"
+            },
             "url": "{{baseUrl}}/quotes/{{quoteId}}"
           }
         },

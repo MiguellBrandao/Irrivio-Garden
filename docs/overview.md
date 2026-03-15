@@ -1,192 +1,55 @@
-# Sistema de Gestão Floripa
+# Floripa Intranet Overview
 
-# Tipos de Utilizadores
+Floripa Intranet is a monorepo for a garden-services intranet with a NestJS API and a Next.js web app.
 
-O sistema terá dois tipos principais de acesso.
+## Company model
 
-## Administrador (Dono)
+- `companies` is the tenant table.
+- `users` is the only table without `company_id`.
+- Every business table is company-scoped.
+- The same auth user can belong to multiple companies through multiple rows in `company_memberships`.
+- A request is valid only when the authenticated user is an active company member of the target company.
 
-O administrador tem acesso total ao sistema e pode:
+## Session model
 
-- Criar e gerir funcionários
-- Criar e organizar equipas
-- Registar jardins / clientes
-- Organizar o calendário de trabalhos
-- Ver histórico de trabalhos realizados
-- Registar produtos utilizados
-- Criar e gerir orçamentos
-- Controlar pagamentos dos clientes
-- Ver relatórios e resumo da empresa
+- `POST /auth/login` returns `accessToken`, `user`, and the list of accessible `companies`.
+- `GET /auth/me` returns the same session payload.
+- The web stores the company list in the auth store and keeps an `activeCompanyId`.
+- Each company in the session payload includes branding plus contact/billing settings.
+- The active company is sent on company-scoped requests through `company_id`.
 
----
+## Roles
 
-## Funcionários
+### Admin
 
-Os funcionários têm acesso apenas ao que precisam para trabalhar no dia‑a‑dia.
+- Can create, update, and delete company-scoped business data.
+- Still needs an active company membership in the company being accessed.
 
-Eles podem:
+### Employee
 
-- Ver os trabalhos do dia
-- Ver o jardim onde vão trabalhar
-- Ver a equipa com quem vão trabalhar
-- Marcar quando o trabalho começa
-- Marcar quando o trabalho termina
-- Registar produtos usados
-- Adicionar notas sobre o trabalho realizado
+- Has read access only to the data allowed by each module.
+- Can only act inside companies where they have an active company membership.
 
----
+## Main domains
 
-# Dashboard (Página Inicial)
+- `company-memberships`: company memberships per company and team assignments.
+- `teams`: work teams inside a company.
+- `gardens`: clients/contracts per company.
+- `tasks`: scheduled work for gardens and teams.
+- `worklogs`: executed work logs tied to tasks and teams.
+- `products`: company stock catalog.
+- `product-usage`: stock consumption tied to gardens and company memberships.
+- `payments`: client payments, admin only.
+- `quotes`: company-scoped quotes linked to gardens, with services arrays and validity date, admin only.
 
-## Dashboard do Administrador
+## Request rules
 
-Mostra um resumo rápido da empresa:
+- `GET` list endpoints accept `company_id` as query parameter.
+- `GET` detail endpoints also accept `company_id` as query parameter.
+- `POST` and `PATCH` bodies must include `company_id`.
+- Responses for company-scoped resources include `company_id`.
+- `DELETE` endpoints infer the company from the target resource and still validate membership/permissions.
 
-- Trabalhos agendados para hoje
-- Equipas em trabalho
-- Clientes com pagamentos em falta
-- Trabalhos realizados recentemente
+## Exception
 
----
-
-## Dashboard dos Funcionários
-
-Mostra apenas o essencial:
-
-- Trabalhos do dia
-- Jardins a visitar
-- Equipa de trabalho
-- Horários previstos
-
----
-
-# Gestão de Funcionários
-
-O sistema permite gerir todos os trabalhadores.
-
-Cada funcionário tem:
-
-- Nome
-- Telefone
-- Equipa
-- Estado (ativo ou inativo)
-
----
-
-# Gestão de Equipas
-
-Os funcionários podem ser organizados em equipas.
-
-Exemplo:
-
-Equipa A
-• João
-• Carlos
-
-Equipa B
-• Pedro
-• Luís
-
----
-
-# Gestão de Jardins / Clientes
-
-Cada jardim corresponde a um cliente da empresa.
-
-Informações guardadas:
-
-- Nome do cliente
-- Morada
-- Contacto
-- Valor mensal
-- Frequência de manutenção
-- Notas adicionais
-
-Exemplo de frequência:
-
-- semanal
-- quinzenal
-- mensal
-
----
-
-# Calendário de Trabalhos
-
-O sistema terá um **calendário mensal** para organizar os trabalhos.
-
-Cada trabalho inclui:
-
-- Data
-- Jardim
-- Equipa
-- Hora prevista
-- Tipo de trabalho
-
-O administrador pode organizar o calendário de forma simples.
-
-Os funcionários veem apenas **os trabalhos que lhes foram atribuídos**.
-
----
-
-# Registo de Trabalhos
-
-Quando um trabalho é realizado, os funcionários podem registar:
-
-- Hora de início
-- Hora de conclusão
-- Observações
-
-Este registo fica guardado no **histórico do jardim**.
-
----
-
-# Registo de Produtos Utilizados
-
-Durante os trabalhos é possível registar produtos utilizados.
-
-Exemplos:
-
-- fertilizantes
-- herbicidas
-- inseticidas
-- outros materiais
-
-O sistema guarda:
-
-- produto utilizado
-- quantidade
-- data
-- funcionário
-- jardim
-
-Isto permite saber **o que foi usado em cada cliente**.
-
----
-
-# Gestão de Pagamentos
-
-Cada cliente tem um valor mensal associado.
-
-O sistema permite:
-
-- Ver mensalidades
-- Registar pagamentos
-- Ver clientes com pagamentos em atraso
-
-Também mantém um **histórico de pagamentos** por cliente.
-
----
-
-# Orçamentos
-
-O sistema permitirá criar **orçamentos para novos clientes**.
-
-Um orçamento inclui:
-
-- Nome do cliente
-- Morada
-- Descrição do serviço
-- Valor proposto
-- Data
-
-Os orçamentos ficam guardados para consulta futura.
+- `PATCH /users/me` updates the authenticated user profile and is not company-scoped.

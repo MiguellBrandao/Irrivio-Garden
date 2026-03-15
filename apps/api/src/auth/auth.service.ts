@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { CompaniesService } from '../companies/companies.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/users.types';
 import { JwtPayload } from './types/jwt-payload.type';
@@ -9,6 +10,7 @@ import { JwtPayload } from './types/jwt-payload.type';
 @Injectable()
 export class AuthService {
   constructor(
+    private readonly companiesService: CompaniesService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -34,12 +36,7 @@ export class AuthService {
 
     return {
       accessToken: tokens.accessToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      ...(await this.buildSessionPayload(user)),
     };
   }
 
@@ -83,11 +80,19 @@ export class AuthService {
     return { success: true };
   }
 
+  async me(authenticatedUser: { id: string }) {
+    const user = await this.usersService.findById(authenticatedUser.id);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return this.buildSessionPayload(user);
+  }
+
   private async generateTokens(user: User) {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role,
     };
 
     const accessExpiresInSeconds = Math.floor(
@@ -117,6 +122,19 @@ export class AuthService {
     ]);
 
     return { accessToken, refreshToken };
+  }
+
+  private async buildSessionPayload(user: User) {
+    const companies = await this.companiesService.listAccessibleCompanies(user.id);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      companies,
+    };
   }
 
   private setRefreshCookie(response: Response, refreshToken: string): void {

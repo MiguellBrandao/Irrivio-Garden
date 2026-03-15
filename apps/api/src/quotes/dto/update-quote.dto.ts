@@ -1,26 +1,31 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
-  IsIn,
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 
-const QUOTE_STATUSES = ['draft', 'sent'] as const;
-
-export class UpdateQuoteDto {
+export class UpdateQuoteDto extends CompanyScopedBodyDto {
   @IsOptional()
-  @IsString()
-  client_name?: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
+  @IsUUID()
+  garden_id?: string;
 
   @IsOptional()
-  @IsString()
-  description?: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((item) => (typeof item === 'string' ? item.trim() : item))
+      : value,
+  )
+  services?: string[];
 
   @IsOptional()
   @Type(() => Number)
@@ -29,8 +34,6 @@ export class UpdateQuoteDto {
   price?: number;
 
   @IsOptional()
-  @IsString()
-  @IsIn(QUOTE_STATUSES)
-  status?: (typeof QUOTE_STATUSES)[number];
+  @IsDateString()
+  valid_until?: string;
 }
-

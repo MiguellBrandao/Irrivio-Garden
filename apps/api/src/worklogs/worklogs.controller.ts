@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CompanyScopedQueryDto } from '../common/dto/company-scoped-query.dto';
 import { CreateWorkLogDto } from './dto/create-worklog.dto';
 import { ListWorkLogsQueryDto } from './dto/list-worklogs-query.dto';
 import { UpdateWorkLogDto } from './dto/update-worklog.dto';
@@ -26,8 +27,8 @@ export class WorkLogsController {
   constructor(private readonly workLogsService: WorkLogsService) {}
 
   private requesterFrom(request: Request) {
-    const user = request.user as { id: string; role: 'admin' | 'employee' };
-    return { id: user.id, role: user.role };
+    const user = request.user as { id: string };
+    return { id: user.id };
   }
 
   @Get()
@@ -39,10 +40,12 @@ export class WorkLogsController {
   async findOne(
     @Req() request: Request,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: CompanyScopedQueryDto,
   ) {
     const workLog = await this.workLogsService.findById(
       id,
       this.requesterFrom(request),
+      query.company_id,
     );
     if (!workLog) {
       throw new NotFoundException('Work log not found');

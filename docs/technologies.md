@@ -17,16 +17,23 @@ Language:
 UI:
 
 - Tailwind CSS
-- Shadcn UI (optional)
+- shadcn/ui
 
 State Management:
 
-- React Query / TanStack Query
+- Zustand
+- TanStack Query
 
 Authentication:
 
 - Access token (JWT) in payload/header
 - Refresh token in HttpOnly cookie
+
+Forms and Validation:
+
+- React Hook Form
+- Zod
+- `@hookform/resolvers`
 
 ---
 

@@ -5,9 +5,10 @@ import {
   IsUUID,
   Matches,
 } from 'class-validator';
+import { CompanyScopedBodyDto } from '../../common/dto/company-scoped-body.dto';
 import { TASK_TYPES, type TaskType } from '../tasks.constants';
 
-export class UpdateTaskDto {
+export class UpdateTaskDto extends CompanyScopedBodyDto {
   @IsOptional()
   @IsUUID()
   garden_id?: string;

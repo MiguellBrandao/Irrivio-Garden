@@ -1,10 +1,10 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
 import { gardens, payments } from '../db/schema';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -12,23 +12,46 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 
 type Requester = {
   id: string;
-  role: 'admin' | 'employee';
 };
 
 @Injectable()
 export class PaymentsService {
-  async findAll(requester: Requester) {
-    this.ensureAdmin(requester);
-    return this.findAllFull();
+  constructor(private readonly companiesService: CompaniesService) {}
+
+  async findAll(requester: Requester, companyId?: string) {
+    const accessibleCompanyIds = await this.companiesService.resolveAdminCompanyIds(
+      requester.id,
+      companyId,
+    );
+
+    if (accessibleCompanyIds.length === 0) {
+      return [];
+    }
+
+    return db
+      .select({
+        id: payments.id,
+        company_id: payments.companyId,
+        garden_id: payments.gardenId,
+        month: payments.month,
+        year: payments.year,
+        amount: payments.amount,
+        paid_at: payments.paidAt,
+        notes: payments.notes,
+      })
+      .from(payments)
+      .where(inArray(payments.companyId, accessibleCompanyIds))
+      .orderBy(desc(payments.year), desc(payments.month), desc(payments.id));
   }
 
   async create(dto: CreatePaymentDto, requester: Requester) {
-    this.ensureAdmin(requester);
-    await this.assertGardenExists(dto.garden_id);
+    await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
+    await this.assertGardenExistsInCompany(dto.garden_id, dto.company_id);
 
     const rows = await db
       .insert(payments)
       .values({
+        companyId: dto.company_id,
         gardenId: dto.garden_id,
         month: dto.month,
         year: dto.year,
@@ -38,6 +61,7 @@ export class PaymentsService {
       })
       .returning({
         id: payments.id,
+        company_id: payments.companyId,
         garden_id: payments.gardenId,
         amount: payments.amount,
       });
@@ -46,10 +70,24 @@ export class PaymentsService {
   }
 
   async update(id: string, dto: UpdatePaymentDto, requester: Requester) {
-    this.ensureAdmin(requester);
+    const current = await this.findPaymentById(id);
+    if (!current) {
+      return null;
+    }
+
+    if (dto.company_id !== current.company_id) {
+      throw new BadRequestException(
+        'company_id must match the payment company_id',
+      );
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      current.company_id,
+    );
 
     if (dto.garden_id !== undefined) {
-      await this.assertGardenExists(dto.garden_id);
+      await this.assertGardenExistsInCompany(dto.garden_id, current.company_id);
     }
 
     const setPayload: {
@@ -60,7 +98,10 @@ export class PaymentsService {
       paidAt?: Date | null;
       notes?: string;
     } = {};
-    const responsePayload: Record<string, unknown> = { id };
+    const responsePayload: Record<string, unknown> = {
+      id,
+      company_id: current.company_id,
+    };
 
     if (dto.garden_id !== undefined) {
       setPayload.gardenId = dto.garden_id;
@@ -100,29 +141,34 @@ export class PaymentsService {
     return updated.length > 0 ? responsePayload : null;
   }
 
-  async findById(id: string, requester: Requester) {
-    this.ensureAdmin(requester);
+  async findById(id: string, requester: Requester, companyId?: string) {
+    const payment = await this.findPaymentById(id);
+    if (!payment) {
+      return null;
+    }
 
-    const rows = await db
-      .select({
-        id: payments.id,
-        garden_id: payments.gardenId,
-        month: payments.month,
-        year: payments.year,
-        amount: payments.amount,
-        paid_at: payments.paidAt,
-        notes: payments.notes,
-      })
-      .from(payments)
-      .where(eq(payments.id, id))
-      .limit(1);
+    if (companyId && companyId !== payment.company_id) {
+      return null;
+    }
 
-    const payment = rows[0];
-    return payment ?? null;
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      payment.company_id,
+    );
+
+    return payment;
   }
 
   async remove(id: string, requester: Requester) {
-    this.ensureAdmin(requester);
+    const payment = await this.findPaymentById(id);
+    if (!payment) {
+      return false;
+    }
+
+    await this.companiesService.assertAdminAccess(
+      requester.id,
+      payment.company_id,
+    );
 
     const deleted = await db
       .delete(payments)
@@ -132,10 +178,11 @@ export class PaymentsService {
     return deleted.length > 0;
   }
 
-  private async findAllFull() {
-    return db
+  private async findPaymentById(id: string) {
+    const rows = await db
       .select({
         id: payments.id,
+        company_id: payments.companyId,
         garden_id: payments.gardenId,
         month: payments.month,
         year: payments.year,
@@ -144,24 +191,19 @@ export class PaymentsService {
         notes: payments.notes,
       })
       .from(payments)
-      .orderBy(desc(payments.year), desc(payments.month), desc(payments.id));
-  }
+      .where(eq(payments.id, id))
+      .limit(1);
 
-  private ensureAdmin(requester: Requester) {
-    if (requester.role !== 'admin') {
-      throw new ForbiddenException('Only admins can manage payments');
-    }
+    return rows[0] ?? null;
   }
-
-  private async assertGardenExists(gardenId: string) {
+  private async assertGardenExistsInCompany(gardenId: string, companyId: string) {
     const rows = await db
       .select({ id: gardens.id })
       .from(gardens)
-      .where(eq(gardens.id, gardenId))
+      .where(and(eq(gardens.id, gardenId), eq(gardens.companyId, companyId)))
       .limit(1);
     if (!rows[0]) {
       throw new NotFoundException('Garden not found');
     }
   }
-
 }
