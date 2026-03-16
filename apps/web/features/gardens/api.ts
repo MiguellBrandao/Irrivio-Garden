@@ -15,6 +15,18 @@ import type {
   SaveIrrigationZonePayload,
 } from "@/features/gardens/types"
 
+type ProductUsageFilters = {
+  garden_id?: string
+  date_from?: string
+  date_to?: string
+}
+
+type ExpenseFilters = {
+  garden_id?: string
+  date_from?: string
+  date_to?: string
+}
+
 export function listGardens(authToken: string) {
   const companyId = requireActiveCompanyId()
 
@@ -68,11 +80,22 @@ export function deleteGarden(authToken: string, gardenId: string) {
 }
 
 export function listGardenProductUsage(authToken: string, gardenId: string) {
+  return listProductUsage(authToken, { garden_id: gardenId })
+}
+
+export function listProductUsage(authToken: string, filters?: ProductUsageFilters) {
   const companyId = requireActiveCompanyId()
-  const params = new URLSearchParams({
-    company_id: companyId,
-    garden_id: gardenId,
-  })
+  const params = new URLSearchParams({ company_id: companyId })
+
+  if (filters?.garden_id) {
+    params.set("garden_id", filters.garden_id)
+  }
+  if (filters?.date_from) {
+    params.set("date_from", filters.date_from)
+  }
+  if (filters?.date_to) {
+    params.set("date_to", filters.date_to)
+  }
 
   return apiFetch<GardenProductUsage[]>(`/product-usage?${params.toString()}`, {
     authToken,
@@ -128,11 +151,23 @@ export function deleteGardenProductUsage(authToken: string, usageId: string) {
 }
 
 export function listGardenExpenses(authToken: string, gardenId: string) {
+  return listExpenses(authToken, { garden_id: gardenId })
+}
+
+export function listExpenses(authToken: string, filters?: ExpenseFilters) {
   const companyId = requireActiveCompanyId()
-  const params = new URLSearchParams({
-    company_id: companyId,
-    garden_id: gardenId,
-  })
+
+  const params = new URLSearchParams({ company_id: companyId })
+
+  if (filters?.garden_id) {
+    params.set("garden_id", filters.garden_id)
+  }
+  if (filters?.date_from) {
+    params.set("date_from", filters.date_from)
+  }
+  if (filters?.date_to) {
+    params.set("date_to", filters.date_to)
+  }
 
   return apiFetch<GardenExpense[]>(`/expenses?${params.toString()}`, {
     authToken,

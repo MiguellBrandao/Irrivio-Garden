@@ -57,6 +57,7 @@ export type GardenExpense = {
   garden_id: string
   category: GardenExpenseCategory
   description: string | null
+  amount: string
   date: string
 }
 
@@ -98,6 +99,7 @@ export type SaveGardenProductUsagePayload = {
 export type SaveGardenExpensePayload = {
   category: GardenExpenseCategory
   description?: string
+  amount: number
   date: string
 }
 

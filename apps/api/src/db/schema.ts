@@ -259,6 +259,9 @@ export const expenses = pgTable('expenses', {
     .references(() => gardens.id, { onDelete: 'cascade' }),
   category: expenseCategoryEnum('category').notNull(),
   description: text('description'),
+  amount: numeric('amount', { precision: 10, scale: 2 })
+    .default('0')
+    .notNull(),
   date: date('date').notNull(),
 });
 

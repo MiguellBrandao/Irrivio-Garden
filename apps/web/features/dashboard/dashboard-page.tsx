@@ -2,11 +2,24 @@
 
 import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { addDays, format } from "date-fns"
-import { useMemo } from "react"
+import { Calendar02Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  addDays,
+  endOfDay,
+  endOfMonth,
+  format,
+  startOfDay,
+  startOfMonth,
+  subMonths,
+  subYears,
+} from "date-fns"
+import { useMemo, useState } from "react"
+import type { DateRange } from "react-day-picker"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Card,
   CardContent,
@@ -14,6 +27,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { listTasks } from "@/features/calendar/api"
 import type { Task } from "@/features/calendar/types"
 import {
@@ -23,21 +44,31 @@ import {
 } from "@/features/calendar/utils"
 import { listTeams } from "@/features/employees/api"
 import type { TeamOption } from "@/features/employees/types"
-import { listGardens, listIrrigationZones } from "@/features/gardens/api"
+import {
+  listExpenses,
+  listGardens,
+  listIrrigationZones,
+  listProductUsage,
+} from "@/features/gardens/api"
 import {
   formatIrrigationTimeRange,
   getUpcomingIrrigationZones,
 } from "@/features/gardens/irrigation"
-import type { Garden, IrrigationZone } from "@/features/gardens/types"
+import type {
+  Garden,
+  GardenExpense,
+  GardenProductUsage,
+  IrrigationZone,
+} from "@/features/gardens/types"
 import { listPayments } from "@/features/payments/api"
-import type { DerivedPaymentEntry } from "@/features/payments/types"
+import type { DerivedPaymentEntry, Payment } from "@/features/payments/types"
 import {
   buildDerivedPaymentEntries,
   formatCurrency,
   paymentStatusLabels,
 } from "@/features/payments/utils"
-import { listStockRules } from "@/features/stock/api"
-import type { StockRule } from "@/features/stock/types"
+import { listProducts, listStockRules } from "@/features/stock/api"
+import type { Product, StockRule } from "@/features/stock/types"
 import {
   describeStockRule,
   formatStockQuantity,
@@ -50,6 +81,34 @@ type QuickAction = {
   label: string
 }
 
+type DashboardFinancePeriodOption =
+  | "this_month"
+  | "last_month"
+  | "last_year"
+  | "all_time"
+  | "custom"
+
+type DashboardDateRange = {
+  from: Date | null
+  to: Date | null
+}
+
+type DashboardFinanceSummary = {
+  revenue: number
+  directExpenses: number
+  productUsageExpenses: number
+  totalExpenses: number
+  gross: number
+}
+
+const dashboardFinancePeriodLabels: Record<DashboardFinancePeriodOption, string> = {
+  this_month: "Este mes",
+  last_month: "Mes passado",
+  last_year: "Ultimo 1 ano",
+  all_time: "Todo o tempo",
+  custom: "Customizado",
+}
+
 export function DashboardPageContent() {
   const accessToken = useAuthStore((state) => state.accessToken)
   const activeCompanyId = useAuthStore((state) => state.activeCompanyId)
@@ -58,8 +117,27 @@ export function DashboardPageContent() {
   )
   const isAdmin = activeCompany?.role === "admin"
   const today = useMemo(() => new Date(), [])
+  const [financePeriod, setFinancePeriod] =
+    useState<DashboardFinancePeriodOption>("this_month")
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(() => {
+    const now = new Date()
+
+    return {
+      from: startOfMonth(now),
+      to: now,
+    }
+  })
+  const [customRangeOpen, setCustomRangeOpen] = useState(false)
   const todayIsoDate = format(today, "yyyy-MM-dd")
   const nextWeekIsoDate = format(addDays(today, 7), "yyyy-MM-dd")
+  const financeDateRange = useMemo(
+    () => resolveDashboardDateRange(financePeriod, customRange, today),
+    [customRange, financePeriod, today]
+  )
+  const financeQueryFilters = useMemo(
+    () => buildDashboardQueryFilters(financeDateRange),
+    [financeDateRange]
+  )
 
   const tasksQuery = useQuery({
     queryKey: ["dashboard", "tasks", activeCompanyId, accessToken, todayIsoDate, nextWeekIsoDate],
@@ -93,6 +171,13 @@ export function DashboardPageContent() {
     placeholderData: keepPreviousData,
   })
 
+  const productsQuery = useQuery({
+    queryKey: ["dashboard", "products", activeCompanyId, accessToken],
+    queryFn: () => listProducts(accessToken ?? ""),
+    enabled: Boolean(accessToken && activeCompanyId && isAdmin),
+    placeholderData: keepPreviousData,
+  })
+
   const irrigationZonesQuery = useQuery({
     queryKey: ["dashboard", "irrigation", activeCompanyId, accessToken],
     queryFn: () => listIrrigationZones(accessToken ?? ""),
@@ -103,6 +188,34 @@ export function DashboardPageContent() {
   const paymentsQuery = useQuery({
     queryKey: ["dashboard", "payments", activeCompanyId, accessToken],
     queryFn: () => listPayments(accessToken ?? ""),
+    enabled: Boolean(accessToken && activeCompanyId && isAdmin),
+    placeholderData: keepPreviousData,
+  })
+
+  const expensesQuery = useQuery({
+    queryKey: [
+      "dashboard",
+      "expenses",
+      activeCompanyId,
+      accessToken,
+      financeQueryFilters.date_from ?? "all",
+      financeQueryFilters.date_to ?? "all",
+    ],
+    queryFn: () => listExpenses(accessToken ?? "", financeQueryFilters),
+    enabled: Boolean(accessToken && activeCompanyId && isAdmin),
+    placeholderData: keepPreviousData,
+  })
+
+  const productUsageQuery = useQuery({
+    queryKey: [
+      "dashboard",
+      "product-usage",
+      activeCompanyId,
+      accessToken,
+      financeQueryFilters.date_from ?? "all",
+      financeQueryFilters.date_to ?? "all",
+    ],
+    queryFn: () => listProductUsage(accessToken ?? "", financeQueryFilters),
     enabled: Boolean(accessToken && activeCompanyId && isAdmin),
     placeholderData: keepPreviousData,
   })
@@ -131,6 +244,10 @@ export function DashboardPageContent() {
     () => (stockRulesQuery.data ?? []).filter((rule) => isStockRuleTriggered(rule)),
     [stockRulesQuery.data]
   )
+  const productsById = useMemo(
+    () => new Map((productsQuery.data ?? []).map((product) => [product.id, product])),
+    [productsQuery.data]
+  )
   const upcomingIrrigation = useMemo(
     () => getUpcomingIrrigationZones(irrigationZonesQuery.data ?? []).slice(0, 6),
     [irrigationZonesQuery.data]
@@ -150,6 +267,28 @@ export function DashboardPageContent() {
     () => paymentEntries.filter((entry) => entry.status !== "paid"),
     [paymentEntries]
   )
+  const financeSummary = useMemo(
+    () =>
+      buildDashboardFinanceSummary({
+        payments: paymentsQuery.data ?? [],
+        expenses: expensesQuery.data ?? [],
+        productUsage: productUsageQuery.data ?? [],
+        productsById,
+        dateRange: financeDateRange,
+      }),
+    [
+      expensesQuery.data,
+      financeDateRange,
+      paymentsQuery.data,
+      productUsageQuery.data,
+      productsById,
+    ]
+  )
+  const isFinanceSummaryLoading =
+    paymentsQuery.isLoading ||
+    expensesQuery.isLoading ||
+    productUsageQuery.isLoading ||
+    productsQuery.isLoading
 
   if (!accessToken) {
     return (
@@ -179,16 +318,26 @@ export function DashboardPageContent() {
         <AdminDashboard
           todayIsoDate={todayIsoDate}
           tasks={scheduledTasks}
-          tasksToday={tasksToday}
           stockAlerts={stockAlerts}
           openPayments={openPayments}
           upcomingIrrigation={upcomingIrrigation}
           gardensById={gardensById}
           teamsById={teamsById}
+          financePeriod={financePeriod}
+          onFinancePeriodChange={(value) => {
+            setFinancePeriod(value)
+            setCustomRangeOpen(value === "custom")
+          }}
+          customRange={customRange}
+          onCustomRangeChange={setCustomRange}
+          customRangeOpen={customRangeOpen}
+          onCustomRangeOpenChange={setCustomRangeOpen}
+          financeSummary={financeSummary}
           isTasksLoading={tasksQuery.isLoading}
           isStockAlertsLoading={stockRulesQuery.isLoading}
           isIrrigationLoading={irrigationZonesQuery.isLoading}
           isFinanceLoading={paymentsQuery.isLoading}
+          isFinanceSummaryLoading={isFinanceSummaryLoading}
         />
       ) : (
         <EmployeeDashboard
@@ -208,29 +357,43 @@ export function DashboardPageContent() {
 function AdminDashboard({
   todayIsoDate,
   tasks,
-  tasksToday,
   stockAlerts,
   openPayments,
   upcomingIrrigation,
   gardensById,
   teamsById,
+  financePeriod,
+  onFinancePeriodChange,
+  customRange,
+  onCustomRangeChange,
+  customRangeOpen,
+  onCustomRangeOpenChange,
+  financeSummary,
   isTasksLoading,
   isStockAlertsLoading,
   isIrrigationLoading,
   isFinanceLoading,
+  isFinanceSummaryLoading,
 }: {
   todayIsoDate: string
   tasks: Task[]
-  tasksToday: Task[]
   stockAlerts: StockRule[]
   openPayments: DerivedPaymentEntry[]
   upcomingIrrigation: Array<{ zone: IrrigationZone; nextDate: Date }>
   gardensById: Map<string, Garden>
   teamsById: Map<string, TeamOption>
+  financePeriod: DashboardFinancePeriodOption
+  onFinancePeriodChange: (value: DashboardFinancePeriodOption) => void
+  customRange: DateRange | undefined
+  onCustomRangeChange: (range: DateRange | undefined) => void
+  customRangeOpen: boolean
+  onCustomRangeOpenChange: (open: boolean) => void
+  financeSummary: DashboardFinanceSummary
   isTasksLoading: boolean
   isStockAlertsLoading: boolean
   isIrrigationLoading: boolean
   isFinanceLoading: boolean
+  isFinanceSummaryLoading: boolean
 }) {
   const quickActions: QuickAction[] = [
     { href: `/calendar/tasks/new?date=${todayIsoDate}`, label: "Criar tarefa" },
@@ -243,10 +406,88 @@ function AdminDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="hidden gap-4 md:grid md:grid-cols-3">
-        <MetricCard label="Tarefas hoje" value={tasksToday.length} />
-        <MetricCard label="Pagamentos em aberto" value={openPayments.length} />
-        <MetricCard label="Alertas por regras de stock" value={stockAlerts.length} />
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Resumo financeiro
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Pagamentos recebidos, despesas registadas e margem do periodo selecionado.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Select
+              value={financePeriod}
+              onValueChange={(value: DashboardFinancePeriodOption) =>
+                onFinancePeriodChange(value)
+              }
+            >
+              <SelectTrigger className="w-full bg-white sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(
+                  dashboardFinancePeriodLabels
+                ) as DashboardFinancePeriodOption[]).map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {dashboardFinancePeriodLabels[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {financePeriod === "custom" ? (
+              <Popover
+                open={customRangeOpen}
+                onOpenChange={onCustomRangeOpenChange}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="justify-between bg-white sm:w-[18rem]"
+                  >
+                    <span className="truncate">{formatDashboardRangeLabel(customRange)}</span>
+                    <HugeiconsIcon icon={Calendar02Icon} strokeWidth={2} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    numberOfMonths={2}
+                    selected={customRange}
+                    onSelect={onCustomRangeChange}
+                  />
+                </PopoverContent>
+              </Popover>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <FinanceMetricCard
+            label="Recebido"
+            value={formatCurrency(financeSummary.revenue)}
+            description="Pagamentos com data de liquidacao no periodo."
+            isLoading={isFinanceSummaryLoading}
+          />
+          <FinanceMetricCard
+            label="Despesas totais"
+            value={formatCurrency(financeSummary.totalExpenses)}
+            description="Despesas registadas mais produtos utilizados."
+            detail={`Diretas ${formatCurrency(financeSummary.directExpenses)} | Produtos ${formatCurrency(financeSummary.productUsageExpenses)}`}
+            isLoading={isFinanceSummaryLoading}
+          />
+          <FinanceMetricCard
+            label="Valor bruto final"
+            value={formatCurrency(financeSummary.gross)}
+            description="Recebido menos os custos do mesmo periodo."
+            isLoading={isFinanceSummaryLoading}
+            tone={financeSummary.gross < 0 ? "negative" : "positive"}
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
@@ -396,14 +637,35 @@ function EmployeeDashboard({
   )
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function FinanceMetricCard({
+  label,
+  value,
+  description,
+  detail,
+  isLoading,
+  tone = "default",
+}: {
+  label: string
+  value: string
+  description: string
+  detail?: string
+  isLoading: boolean
+  tone?: "default" | "positive" | "negative"
+}) {
+  const valueClassName =
+    tone === "negative" ? "text-red-700" : "text-[#1f2f27]"
+
   return (
     <Card className="border-[#dfd7c0] bg-white">
-      <CardContent className="space-y-2 p-5">
+      <CardContent className="space-y-3 p-5">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
           {label}
         </p>
-        <p className="text-3xl font-semibold tracking-tight text-[#1f2f27]">{value}</p>
+        <p className={`text-3xl font-semibold tracking-tight ${valueClassName}`}>
+          {isLoading ? "A carregar..." : value}
+        </p>
+        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        {detail ? <p className="text-xs leading-5 text-muted-foreground">{detail}</p> : null}
       </CardContent>
     </Card>
   )
@@ -640,4 +902,141 @@ function sortTasksBySchedule(tasks: Task[]) {
 
     return (left.start_time ?? "99:99:99").localeCompare(right.start_time ?? "99:99:99")
   })
+}
+
+function buildDashboardFinanceSummary({
+  payments,
+  expenses,
+  productUsage,
+  productsById,
+  dateRange,
+}: {
+  payments: Payment[]
+  expenses: GardenExpense[]
+  productUsage: GardenProductUsage[]
+  productsById: Map<string, Product>
+  dateRange: DashboardDateRange
+}): DashboardFinanceSummary {
+  const revenue = payments.reduce((sum, payment) => {
+    if (!payment.paid_at) {
+      return sum
+    }
+
+    const paidAt = new Date(payment.paid_at)
+
+    if (!isDateInsideDashboardRange(paidAt, dateRange)) {
+      return sum
+    }
+
+    return sum + toFiniteNumber(payment.amount)
+  }, 0)
+
+  const directExpenses = expenses.reduce(
+    (sum, expense) => sum + toFiniteNumber(expense.amount),
+    0
+  )
+
+  const productUsageExpenses = productUsage.reduce((sum, usage) => {
+    const product = productsById.get(usage.product_id)
+    const unitPrice = toFiniteNumber(product?.unit_price)
+    const quantity = toFiniteNumber(usage.quantity)
+
+    return sum + unitPrice * quantity
+  }, 0)
+
+  const totalExpenses = directExpenses + productUsageExpenses
+
+  return {
+    revenue,
+    directExpenses,
+    productUsageExpenses,
+    totalExpenses,
+    gross: revenue - totalExpenses,
+  }
+}
+
+function resolveDashboardDateRange(
+  option: DashboardFinancePeriodOption,
+  customRange: DateRange | undefined,
+  now: Date
+): DashboardDateRange {
+  if (option === "all_time") {
+    return { from: null, to: null }
+  }
+
+  if (option === "custom") {
+    return {
+      from: customRange?.from ? startOfDay(customRange.from) : null,
+      to: customRange?.to
+        ? endOfDay(customRange.to)
+        : customRange?.from
+          ? endOfDay(customRange.from)
+          : null,
+    }
+  }
+
+  if (option === "last_month") {
+    const previousMonth = subMonths(now, 1)
+
+    return {
+      from: startOfMonth(previousMonth),
+      to: endOfMonth(previousMonth),
+    }
+  }
+
+  if (option === "last_year") {
+    return {
+      from: startOfDay(subYears(now, 1)),
+      to: endOfDay(now),
+    }
+  }
+
+  return {
+    from: startOfMonth(now),
+    to: endOfMonth(now),
+  }
+}
+
+function buildDashboardQueryFilters(range: DashboardDateRange) {
+  const filters: { date_from?: string; date_to?: string } = {}
+
+  if (range.from) {
+    filters.date_from = format(range.from, "yyyy-MM-dd")
+  }
+
+  if (range.to) {
+    filters.date_to = format(range.to, "yyyy-MM-dd")
+  }
+
+  return filters
+}
+
+function isDateInsideDashboardRange(date: Date, range: DashboardDateRange) {
+  if (range.from && date < range.from) {
+    return false
+  }
+
+  if (range.to && date > range.to) {
+    return false
+  }
+
+  return true
+}
+
+function formatDashboardRangeLabel(range: DateRange | undefined) {
+  if (!range?.from) {
+    return "Selecionar intervalo"
+  }
+
+  if (!range.to) {
+    return format(range.from, "dd/MM/yyyy")
+  }
+
+  return `${format(range.from, "dd/MM/yyyy")} ate ${format(range.to, "dd/MM/yyyy")}`
+}
+
+function toFiniteNumber(value: string | number | null | undefined) {
+  const normalized = Number(value)
+
+  return Number.isFinite(normalized) ? normalized : 0
 }

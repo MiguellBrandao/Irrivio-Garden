@@ -51,7 +51,7 @@ import type {
   GardenExpenseCategory,
   SaveGardenExpensePayload,
 } from "@/features/gardens/types"
-import { expenseCategoryLabels, formatDate } from "@/features/gardens/utils"
+import { expenseCategoryLabels, formatCurrency, formatDate } from "@/features/gardens/utils"
 import { useAuthStore } from "@/lib/auth/store"
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20]
@@ -86,6 +86,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
   const [category, setCategory] = useState<GardenExpenseCategory>("fuel")
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [description, setDescription] = useState("")
+  const [amount, setAmount] = useState("")
 
   const gardenQuery = useQuery({
     queryKey: ["gardens", "detail", gardenId, activeCompanyId, accessToken],
@@ -111,6 +112,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
         expenseCategoryLabels[expense.category],
         expense.category,
         expense.description ?? "",
+        expense.amount,
         expense.date,
       ]
         .join(" ")
@@ -136,10 +138,20 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
         throw new Error("Indica a data da despesa.")
       }
 
+      if (amount.trim() === "") {
+        throw new Error("Indica o valor da despesa.")
+      }
+
+      const numericAmount = Number(amount)
+      if (Number.isNaN(numericAmount) || numericAmount < 0) {
+        throw new Error("Indica um valor valido para a despesa.")
+      }
+
       const payload: SaveGardenExpensePayload = {
         category,
         date: date.trim(),
         description: description.trim() || undefined,
+        amount: numericAmount,
       }
 
       if (editingExpense) {
@@ -187,6 +199,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
     setCategory("fuel")
     setDate(new Date().toISOString().slice(0, 10))
     setDescription("")
+    setAmount("")
   }
 
   function closeDialog() {
@@ -204,6 +217,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
     setCategory(expense.category)
     setDate(expense.date)
     setDescription(expense.description ?? "")
+    setAmount(expense.amount)
     setDialogOpen(true)
   }
 
@@ -307,7 +321,9 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
                     <h3 className="font-medium text-[#1f2f27]">
                       {expenseCategoryLabels[expense.category]}
                     </h3>
-                    <p className="text-xs text-muted-foreground">{formatDate(expense.date)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(expense.date)} - {formatCurrency(Number(expense.amount))}
+                    </p>
                   </div>
 
                   {expense.description?.trim() ? (
@@ -349,6 +365,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
                 <TableRow>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Descricao</TableHead>
+                  <TableHead>Valor</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead className="text-right">Acoes</TableHead>
                 </TableRow>
@@ -356,7 +373,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
               <TableBody>
                 {expensesQuery.isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       A carregar despesas...
                     </TableCell>
                   </TableRow>
@@ -369,6 +386,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
                       <TableCell className="max-w-96 whitespace-normal">
                         {expense.description?.trim() || "Sem descricao."}
                       </TableCell>
+                      <TableCell>{formatCurrency(Number(expense.amount))}</TableCell>
                       <TableCell>{formatDate(expense.date)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -394,7 +412,7 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       Ainda nao existem despesas registadas para este jardim.
                     </TableCell>
                   </TableRow>
@@ -445,6 +463,8 @@ export function GardenExpensesPage({ gardenId }: GardenExpensesPageProps) {
         onDateChange={setDate}
         description={description}
         onDescriptionChange={setDescription}
+        amount={amount}
+        onAmountChange={setAmount}
         isPending={saveMutation.isPending}
         onSubmit={() => saveMutation.mutate()}
       />
@@ -462,6 +482,8 @@ type GardenExpenseDialogProps = {
   onDateChange: (value: string) => void
   description: string
   onDescriptionChange: (value: string) => void
+  amount: string
+  onAmountChange: (value: string) => void
   isPending: boolean
   onSubmit: () => void
 }
@@ -476,6 +498,8 @@ function GardenExpenseDialog({
   onDateChange,
   description,
   onDescriptionChange,
+  amount,
+  onAmountChange,
   isPending,
   onSubmit,
 }: GardenExpenseDialogProps) {
@@ -522,6 +546,25 @@ function GardenExpenseDialog({
               type="date"
               value={date}
               onChange={(event) => onDateChange(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="garden-expense-amount"
+              className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground"
+            >
+              Valor
+            </label>
+            <Input
+              id="garden-expense-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={amount}
+              onChange={(event) => onAmountChange(event.target.value)}
+              placeholder="0.00"
             />
           </div>
 

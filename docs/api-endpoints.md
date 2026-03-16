@@ -561,6 +561,46 @@ Notes:
 
 Response `204`
 
+## Expenses
+
+Access rules:
+
+- `admin` only.
+- The admin must still be an active company member of the target company.
+
+### `GET /expenses?company_id=<uuid>&garden_id=<uuid>&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+
+### `GET /expenses/:id?company_id=<uuid>`
+
+### `POST /expenses`
+
+```json
+{
+  "company_id": "uuid",
+  "garden_id": "uuid",
+  "category": "fuel",
+  "description": "Abastecimento para a deslocacao da equipa",
+  "amount": 45.5,
+  "date": "2026-03-16"
+}
+```
+
+### `PATCH /expenses/:id`
+
+```json
+{
+  "company_id": "uuid",
+  "category": "transport",
+  "description": "Deslocacao extraordinaria",
+  "amount": 52.75,
+  "date": "2026-03-16"
+}
+```
+
+### `DELETE /expenses/:id`
+
+Response `204`
+
 ## Payments
 
 Access rules:

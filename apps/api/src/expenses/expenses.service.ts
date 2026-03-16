@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
 import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
 import { expenses, gardens } from '../db/schema';
@@ -38,6 +38,12 @@ export class ExpensesService {
     if (query.garden_id) {
       filters.push(eq(expenses.gardenId, query.garden_id));
     }
+    if (query.date_from) {
+      filters.push(gte(expenses.date, query.date_from));
+    }
+    if (query.date_to) {
+      filters.push(lte(expenses.date, query.date_to));
+    }
 
     return db
       .select({
@@ -46,6 +52,7 @@ export class ExpensesService {
         garden_id: expenses.gardenId,
         category: expenses.category,
         description: expenses.description,
+        amount: expenses.amount,
         date: expenses.date,
       })
       .from(expenses)
@@ -82,6 +89,7 @@ export class ExpensesService {
         gardenId: dto.garden_id,
         category: dto.category,
         description: dto.description,
+        amount: dto.amount.toString(),
         date: dto.date,
       })
       .returning({
@@ -90,6 +98,7 @@ export class ExpensesService {
         garden_id: expenses.gardenId,
         category: expenses.category,
         description: expenses.description,
+        amount: expenses.amount,
         date: expenses.date,
       });
 
@@ -121,6 +130,7 @@ export class ExpensesService {
       gardenId?: string;
       category?: ExpenseCategory;
       description?: string;
+      amount?: string;
       date?: string;
     } = {};
     const responsePayload: Record<string, unknown> = {
@@ -139,6 +149,10 @@ export class ExpensesService {
     if (dto.description !== undefined) {
       setPayload.description = dto.description;
       responsePayload.description = dto.description;
+    }
+    if (dto.amount !== undefined) {
+      setPayload.amount = dto.amount.toString();
+      responsePayload.amount = dto.amount.toFixed(2);
     }
     if (dto.date !== undefined) {
       setPayload.date = dto.date;
@@ -185,6 +199,7 @@ export class ExpensesService {
         garden_id: expenses.gardenId,
         category: expenses.category,
         description: expenses.description,
+        amount: expenses.amount,
         date: expenses.date,
       })
       .from(expenses)

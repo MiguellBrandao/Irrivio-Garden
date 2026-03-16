@@ -162,6 +162,18 @@ The work log is tied to a task and a team. It does not store `company_membership
 | `date` | `date` | Usage date |
 | `notes` | `text` | Notes, nullable |
 
+## expenses
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `garden_id` | `uuid` | FK -> `gardens.id` |
+| `category` | `enum` | `fuel`, `tolls`, `parking`, `equipment`, `maintenance`, `transport`, `other` |
+| `description` | `text` | Notes, nullable |
+| `amount` | `numeric(10,2)` | Expense amount |
+| `date` | `date` | Expense date |
+
 ## payments
 
 | Field | Type | Notes |
