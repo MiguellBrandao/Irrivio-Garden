@@ -20,6 +20,10 @@ export class UpdateProductUsageDto extends CompanyScopedBodyDto {
 
   @IsOptional()
   @IsUUID()
+  task_id?: string;
+
+  @IsOptional()
+  @IsUUID()
   company_membership_id?: string;
 
   @IsOptional()

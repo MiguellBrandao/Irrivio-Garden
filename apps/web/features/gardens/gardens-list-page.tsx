@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -32,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { deleteGarden, listGardens } from "@/features/gardens/api"
-import type { GardenStatus } from "@/features/gardens/types"
+import type { Garden, GardenStatus } from "@/features/gardens/types"
 import {
   formatCurrency,
   formatDate,
@@ -40,12 +41,18 @@ import {
   statusLabels,
 } from "@/features/gardens/utils"
 import { useAuthStore } from "@/lib/auth/store"
+import { cn } from "@/lib/utils"
+import {
+  Add01Icon,
+  PencilEdit02Icon,
+  ViewIcon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20]
 
 export function GardensListPage() {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const accessToken = useAuthStore((state) => state.accessToken)
   const activeCompanyId = useAuthStore((state) => state.activeCompanyId)
@@ -105,11 +112,27 @@ export function GardensListPage() {
     },
   })
 
+  function openGardenDetails(gardenId: string) {
+    router.push(`/gardens/${gardenId}`)
+  }
+
+  function handleGardenKeyDown(
+    event: React.KeyboardEvent<HTMLElement>,
+    gardenId: string
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return
+    }
+
+    event.preventDefault()
+    openGardenDetails(gardenId)
+  }
+
   if (!accessToken) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Sessão em falta</CardTitle>
+          <CardTitle>Sessao em falta</CardTitle>
           <CardDescription>
             Faz login novamente antes de gerir jardins.
           </CardDescription>
@@ -161,7 +184,7 @@ export function GardensListPage() {
               <SelectContent>
                 {PAGE_SIZE_OPTIONS.map((value) => (
                   <SelectItem key={value} value={String(value)}>
-                    {value}/pág.
+                    {value}/pag.
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -187,7 +210,11 @@ export function GardensListPage() {
             paginatedGardens.map((garden) => (
               <article
                 key={garden.id}
-                className="rounded-2xl border border-[#dfd7c0] bg-white p-4 shadow-sm"
+                role="button"
+                tabIndex={0}
+                onClick={() => openGardenDetails(garden.id)}
+                onKeyDown={(event) => handleGardenKeyDown(event, garden.id)}
+                className="cursor-pointer rounded-2xl border border-[#dfd7c0] bg-white p-4 shadow-sm transition hover:border-[#cfc4a5] hover:bg-[#f8f4ea]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -203,11 +230,11 @@ export function GardensListPage() {
 
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="space-y-1">
-                    <dt className="text-muted-foreground">Frequência</dt>
+                    <dt className="text-muted-foreground">Frequencia</dt>
                     <dd>
                       {garden.maintenance_frequency
                         ? frequencyLabels[garden.maintenance_frequency]
-                        : "—"}
+                        : "-"}
                     </dd>
                   </div>
                   <div className="space-y-1">
@@ -215,12 +242,12 @@ export function GardensListPage() {
                     <dd>
                       {garden.monthly_price
                         ? formatCurrency(Number(garden.monthly_price))
-                        : "—"}
+                        : "-"}
                     </dd>
                   </div>
                   <div className="space-y-1">
-                    <dt className="text-muted-foreground">Dia cobrança</dt>
-                    <dd>{garden.billing_day ?? "—"}</dd>
+                    <dt className="text-muted-foreground">Dia cobranca</dt>
+                    <dd>{garden.billing_day ?? "-"}</dd>
                   </div>
                   <div className="space-y-1">
                     <dt className="text-muted-foreground">Criado</dt>
@@ -228,28 +255,18 @@ export function GardensListPage() {
                   </div>
                 </dl>
 
-                {isAdmin ? (
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button asChild variant="outline" size="icon-sm">
-                      <Link href={`/gardens/${garden.id}/edit`}>
-                        <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-                        <span className="sr-only">Editar jardim</span>
-                      </Link>
-                    </Button>
-                    <DeleteConfirmDialog
-                      title="Apagar jardim"
-                      description={`Tens a certeza que queres apagar o jardim de ${garden.client_name}? Esta acao nao pode ser revertida.`}
-                      onConfirm={() =>
-                        deleteMutation.mutate({
-                          id: garden.id,
-                          client_name: garden.client_name,
-                        })
-                      }
-                      isPending={deleteMutation.isPending}
-                      srLabel="Apagar jardim"
-                    />
-                  </div>
-                ) : null}
+                <GardenActionButtons
+                  garden={garden}
+                  isAdmin={isAdmin}
+                  isDeletePending={deleteMutation.isPending}
+                  className="mt-4"
+                  onDelete={() =>
+                    deleteMutation.mutate({
+                      id: garden.id,
+                      client_name: garden.client_name,
+                    })
+                  }
+                />
               </article>
             ))
           ) : (
@@ -264,24 +281,31 @@ export function GardensListPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Frequência</TableHead>
+                <TableHead>Frequencia</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Valor mensal</TableHead>
-                <TableHead>Dia cobrança</TableHead>
+                <TableHead>Dia cobranca</TableHead>
                 <TableHead>Criado</TableHead>
-                {isAdmin ? <TableHead className="text-right">Ações</TableHead> : null}
+                <TableHead className="text-right">Acoes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {gardensQuery.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 7 : 6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     A carregar jardins...
                   </TableCell>
                 </TableRow>
               ) : paginatedGardens.length ? (
                 paginatedGardens.map((garden) => (
-                  <TableRow key={garden.id}>
+                  <TableRow
+                    key={garden.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openGardenDetails(garden.id)}
+                    onKeyDown={(event) => handleGardenKeyDown(event, garden.id)}
+                    className="cursor-pointer transition hover:bg-[#f8f4ea]"
+                  >
                     <TableCell className="align-top">
                       <div className="space-y-1">
                         <div className="font-medium text-[#1f2f27]">
@@ -295,7 +319,7 @@ export function GardensListPage() {
                     <TableCell>
                       {garden.maintenance_frequency
                         ? frequencyLabels[garden.maintenance_frequency]
-                        : "—"}
+                        : "-"}
                     </TableCell>
                     <TableCell>
                       <GardenStatusBadge status={garden.status} />
@@ -303,39 +327,28 @@ export function GardensListPage() {
                     <TableCell>
                       {garden.monthly_price
                         ? formatCurrency(Number(garden.monthly_price))
-                        : "—"}
+                        : "-"}
                     </TableCell>
-                    <TableCell>{garden.billing_day ?? "—"}</TableCell>
+                    <TableCell>{garden.billing_day ?? "-"}</TableCell>
                     <TableCell>{formatDate(garden.created_at)}</TableCell>
-                    {isAdmin ? (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                        <Button asChild variant="outline" size="icon-sm">
-                          <Link href={`/gardens/${garden.id}/edit`}>
-                            <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-                            <span className="sr-only">Editar jardim</span>
-                          </Link>
-                        </Button>
-                        <DeleteConfirmDialog
-                          title="Apagar jardim"
-                          description={`Tens a certeza que queres apagar o jardim de ${garden.client_name}? Esta acao nao pode ser revertida.`}
-                          onConfirm={() =>
-                            deleteMutation.mutate({
-                              id: garden.id,
-                              client_name: garden.client_name,
-                            })
-                          }
-                          isPending={deleteMutation.isPending}
-                          srLabel="Apagar jardim"
-                        />
-                        </div>
-                      </TableCell>
-                    ) : null}
+                    <TableCell className="text-right">
+                      <GardenActionButtons
+                        garden={garden}
+                        isAdmin={isAdmin}
+                        isDeletePending={deleteMutation.isPending}
+                        onDelete={() =>
+                          deleteMutation.mutate({
+                            id: garden.id,
+                            client_name: garden.client_name,
+                          })
+                        }
+                      />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 7 : 6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     Nenhum jardim encontrado.
                   </TableCell>
                 </TableRow>
@@ -346,7 +359,7 @@ export function GardensListPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            {filteredGardens.length} registo(s) no total. Página {safePageIndex + 1} de{" "}
+            {filteredGardens.length} registo(s) no total. Pagina {safePageIndex + 1} de{" "}
             {totalPages}.
           </p>
           <div className="flex gap-2">
@@ -372,6 +385,54 @@ export function GardensListPage() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+type GardenActionButtonsProps = {
+  garden: Garden
+  isAdmin: boolean
+  isDeletePending: boolean
+  className?: string
+  onDelete: () => void
+}
+
+function GardenActionButtons({
+  garden,
+  isAdmin,
+  isDeletePending,
+  className,
+  onDelete,
+}: GardenActionButtonsProps) {
+  return (
+    <div
+      className={cn("flex justify-end gap-2", className)}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <Button asChild variant="outline" size="icon-sm">
+        <Link href={`/gardens/${garden.id}`}>
+          <HugeiconsIcon icon={ViewIcon} strokeWidth={2} />
+          <span className="sr-only">Ver detalhes do jardim</span>
+        </Link>
+      </Button>
+      {isAdmin ? (
+        <Button asChild variant="outline" size="icon-sm">
+          <Link href={`/gardens/${garden.id}/edit`}>
+            <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
+            <span className="sr-only">Editar jardim</span>
+          </Link>
+        </Button>
+      ) : null}
+      {isAdmin ? (
+        <DeleteConfirmDialog
+          title="Apagar jardim"
+          description={`Tens a certeza que queres apagar o jardim de ${garden.client_name}? Esta acao nao pode ser revertida.`}
+          onConfirm={onDelete}
+          isPending={isDeletePending}
+          srLabel="Apagar jardim"
+        />
+      ) : null}
+    </div>
   )
 }
 

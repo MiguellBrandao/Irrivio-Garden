@@ -12,6 +12,10 @@ export class ListProductUsageQueryDto extends CompanyScopedQueryDto {
 
   @IsOptional()
   @IsUUID()
+  task_id?: string;
+
+  @IsOptional()
+  @IsUUID()
   company_membership_id?: string;
 
   @IsOptional()

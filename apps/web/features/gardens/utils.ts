@@ -1,4 +1,5 @@
 import type {
+  GardenExpenseCategory,
   Garden,
   GardenFrequency,
   GardenStatus,
@@ -16,6 +17,16 @@ export const statusLabels: Record<GardenStatus, string> = {
   active: "Ativo",
   paused: "Pausado",
   cancelled: "Cancelado",
+}
+
+export const expenseCategoryLabels: Record<GardenExpenseCategory, string> = {
+  fuel: "Combustivel",
+  tolls: "Portagens",
+  parking: "Estacionamento",
+  equipment: "Equipamento",
+  maintenance: "Manutencao",
+  transport: "Transporte",
+  other: "Outra",
 }
 
 export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {

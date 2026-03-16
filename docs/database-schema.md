@@ -133,6 +133,19 @@ The work log is tied to a task and a team. It does not store `company_membership
 | `name` | `varchar(255)` | Product name |
 | `unit` | `enum` | `unit`, `kg`, `g`, `l`, `ml`, `m`, `m2`, `m3`, `pack` |
 | `stock_quantity` | `numeric(10,2)` | Default `0` |
+| `unit_price` | `numeric(10,2)` | Value per configured unit |
+| `created_at` | `timestamp` | Creation date |
+
+## stock_rules
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key |
+| `company_id` | `uuid` | FK -> `companies.id` |
+| `product_id` | `uuid` | FK -> `products.id` |
+| `operator` | `enum` | `lt`, `lte`, `eq`, `gt`, `gte` |
+| `threshold_quantity` | `numeric(10,2)` | Quantity threshold for the rule |
+| `emails` | `text[]` | Notification target emails |
 | `created_at` | `timestamp` | Creation date |
 
 ## product_usage
@@ -143,6 +156,7 @@ The work log is tied to a task and a team. It does not store `company_membership
 | `company_id` | `uuid` | FK -> `companies.id` |
 | `product_id` | `uuid` | FK -> `products.id` |
 | `garden_id` | `uuid` | FK -> `gardens.id` |
+| `task_id` | `uuid` | FK -> `tasks.id`, nullable |
 | `company_membership_id` | `uuid` | FK -> `company_memberships.id`, nullable |
 | `quantity` | `numeric(10,2)` | Used quantity |
 | `date` | `date` | Usage date |

@@ -4,7 +4,14 @@ import {
   requireActiveCompanyId,
 } from "@/lib/auth/company"
 
-import type { SaveTaskPayload, Task } from "@/features/calendar/types"
+import type {
+  CompleteTaskPayload,
+  CreateTaskProductUsagePayload,
+  SaveTaskPayload,
+  Task,
+  TaskProductUsage,
+  TaskWorkLog,
+} from "@/features/calendar/types"
 
 type ListTasksFilters = {
   garden_id?: string
@@ -83,5 +90,79 @@ export function deleteTask(authToken: string, taskId: string) {
     method: "DELETE",
     authToken,
     requireAuth: true,
+  })
+}
+
+export function listTaskProductUsage(authToken: string, taskId: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({
+    company_id: companyId,
+    task_id: taskId,
+  })
+
+  return apiFetch<TaskProductUsage[]>(`/product-usage?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function createTaskProductUsage(
+  authToken: string,
+  payload: CreateTaskProductUsagePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<TaskProductUsage>("/product-usage", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function updateTaskProductUsage(
+  authToken: string,
+  usageId: string,
+  payload: CreateTaskProductUsagePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<Partial<TaskProductUsage> & { id: string }>(`/product-usage/${usageId}`, {
+    method: "PATCH",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function deleteTaskProductUsage(authToken: string, usageId: string) {
+  return apiFetch<void>(`/product-usage/${usageId}`, {
+    method: "DELETE",
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function listTaskWorkLogs(authToken: string, taskId: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({
+    company_id: companyId,
+    task_id: taskId,
+  })
+
+  return apiFetch<TaskWorkLog[]>(`/worklogs?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function completeTask(authToken: string, payload: CompleteTaskPayload) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<TaskWorkLog>("/worklogs", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
   })
 }

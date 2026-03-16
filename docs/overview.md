@@ -37,7 +37,8 @@ Floripa Intranet is a monorepo for a garden-services intranet with a NestJS API 
 - `gardens`: clients/contracts per company.
 - `tasks`: scheduled work for gardens and teams.
 - `worklogs`: executed work logs tied to tasks and teams.
-- `products`: company stock catalog.
+- `products`: company stock catalog with per-unit pricing.
+- `stock-rules`: company-specific stock alert rules by product, quantity condition, and notification emails.
 - `product-usage`: stock consumption tied to gardens and company memberships.
 - `payments`: client payments, admin only.
 - `quotes`: company-scoped quotes linked to gardens, with services arrays and validity date, admin only.

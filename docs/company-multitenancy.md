@@ -54,6 +54,7 @@ The following tables are company-scoped and now contain `company_id`:
 - `tasks`
 - `work_logs`
 - `products`
+- `stock_rules`
 - `product_usage`
 - `payments`
 - `quotes`
@@ -192,6 +193,13 @@ If there is no active company, the protected pages block company-scoped actions.
 ### Products
 
 - Stock is isolated per company.
+- Each product now has a `unit_price` tied to its configured unit.
+
+### Stock rules
+
+- Stock rules belong to a company.
+- Each rule points to a product in the same company.
+- A rule stores a quantity operator, a threshold, and an email array.
 
 ### Product usage
 

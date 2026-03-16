@@ -46,6 +46,7 @@ export class ProductsService {
         name: products.name,
         unit: products.unit,
         stock_quantity: products.stockQuantity,
+        unit_price: products.unitPrice,
         created_at: products.createdAt,
       })
       .from(products)
@@ -87,6 +88,7 @@ export class ProductsService {
         name,
         unit,
         stockQuantity: (dto.stock_quantity ?? 0).toString(),
+        unitPrice: dto.unit_price.toString(),
       })
       .returning({
         id: products.id,
@@ -94,6 +96,7 @@ export class ProductsService {
         name: products.name,
         unit: products.unit,
         stock_quantity: products.stockQuantity,
+        unit_price: products.unitPrice,
         created_at: products.createdAt,
       });
 
@@ -121,6 +124,7 @@ export class ProductsService {
       name?: string;
       unit?: ProductUnit;
       stockQuantity?: string;
+      unitPrice?: string;
     } = {};
     const responsePayload: Record<string, unknown> = {
       id,
@@ -143,6 +147,10 @@ export class ProductsService {
     if (dto.stock_quantity !== undefined) {
       setPayload.stockQuantity = dto.stock_quantity.toString();
       responsePayload.stock_quantity = dto.stock_quantity;
+    }
+    if (dto.unit_price !== undefined) {
+      setPayload.unitPrice = dto.unit_price.toString();
+      responsePayload.unit_price = dto.unit_price;
     }
 
     if (Object.keys(setPayload).length === 0) {
@@ -197,6 +205,7 @@ export class ProductsService {
         name: products.name,
         unit: products.unit,
         stock_quantity: products.stockQuantity,
+        unit_price: products.unitPrice,
         created_at: products.createdAt,
       })
       .from(products)

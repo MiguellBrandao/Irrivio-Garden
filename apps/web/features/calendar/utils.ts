@@ -41,6 +41,14 @@ export function formatTaskDate(date: string) {
   return format(parseIsoDate(date), "dd/MM/yyyy")
 }
 
+export function formatTaskDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "Sem registo"
+  }
+
+  return format(new Date(value), "dd/MM/yyyy HH:mm")
+}
+
 export function getMonthRange(date: Date) {
   return {
     from: toIsoDate(startOfMonth(date)),

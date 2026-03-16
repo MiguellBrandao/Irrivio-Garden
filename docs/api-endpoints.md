@@ -15,7 +15,7 @@ Notes:
 
 ## Company-scoped rules
 
-For all business modules (`company-memberships`, `teams`, `gardens`, `tasks`, `worklogs`, `products`, `product-usage`, `payments`, `quotes`):
+For all business modules (`company-memberships`, `teams`, `gardens`, `tasks`, `worklogs`, `products`, `stock-rules`, `product-usage`, `payments`, `quotes`):
 
 - `GET` list endpoints accept `company_id` in the query string.
 - `GET` detail endpoints accept `company_id` in the query string.
@@ -419,7 +419,8 @@ Allowed `unit`:
   "company_id": "uuid",
   "name": "Fertilizante X",
   "unit": "kg",
-  "stock_quantity": 25
+  "stock_quantity": 25,
+  "unit_price": 12.5
 }
 ```
 
@@ -430,11 +431,67 @@ Allowed `unit`:
 ```json
 {
   "company_id": "uuid",
-  "stock_quantity": 18
+  "stock_quantity": 18,
+  "unit_price": 14
 }
 ```
 
 ### `DELETE /products/:id`
+
+Response `204`
+
+## Stock Rules
+
+Access rules:
+
+- `admin` only.
+- The admin must still be an active company member of the target company.
+
+### `GET /stock-rules?company_id=<uuid>&product_id=<uuid>`
+
+Response item example:
+
+```json
+{
+  "id": "uuid",
+  "company_id": "uuid",
+  "product_id": "uuid",
+  "product_name": "Fertilizante X",
+  "product_unit": "kg",
+  "product_stock_quantity": "3.00",
+  "operator": "lt",
+  "threshold_quantity": "5.00",
+  "emails": ["alertas@floripa.pt", "stock@floripa.pt"],
+  "created_at": "2026-03-15T10:00:00.000Z"
+}
+```
+
+### `GET /stock-rules/:id?company_id=<uuid>`
+
+### `POST /stock-rules`
+
+```json
+{
+  "company_id": "uuid",
+  "product_id": "uuid",
+  "operator": "lt",
+  "threshold_quantity": 5,
+  "emails": ["alertas@floripa.pt", "stock@floripa.pt"]
+}
+```
+
+### `PATCH /stock-rules/:id`
+
+```json
+{
+  "company_id": "uuid",
+  "operator": "lte",
+  "threshold_quantity": 7,
+  "emails": ["alertas@floripa.pt"]
+}
+```
+
+### `DELETE /stock-rules/:id`
 
 Response `204`
 
@@ -443,11 +500,13 @@ Response `204`
 Access rules:
 
 - `admin`: full CRUD in accessible companies.
-- `employee`: can list, create, and update only their own usage logs in the target company.
+- `employee`: can create usage for their own accessible gardens and for tasks assigned to their teams.
+- `employee`: can view their own usage logs and task-linked usage logs for tasks assigned to their teams.
+- `employee`: can update only their own usage logs in the target company.
 - `employee`: cannot delete usage logs.
 - Product stock is adjusted automatically on create, update, and delete.
 
-### `GET /product-usage?company_id=<uuid>&product_id=<uuid>&garden_id=<uuid>&company_membership_id=<uuid>&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+### `GET /product-usage?company_id=<uuid>&product_id=<uuid>&garden_id=<uuid>&task_id=<uuid>&company_membership_id=<uuid>&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
 
 ### `POST /product-usage`
 
@@ -458,7 +517,7 @@ Admin request:
   "company_id": "uuid",
   "product_id": "uuid",
   "garden_id": "uuid",
-  "company_membership_id": "uuid",
+  "task_id": "uuid",
   "quantity": 2.5,
   "date": "2026-03-14",
   "notes": "Aplicacao semanal"
@@ -472,6 +531,7 @@ Employee request:
   "company_id": "uuid",
   "product_id": "uuid",
   "garden_id": "uuid",
+  "task_id": "uuid",
   "quantity": 2.5,
   "date": "2026-03-14",
   "notes": "Aplicacao semanal"
@@ -480,8 +540,10 @@ Employee request:
 
 Notes:
 
-- `company_membership_id` is required for admin create.
+- `company_membership_id` is optional for admin create. If omitted, the requester's own company membership is used.
 - `company_membership_id` must not be sent by employees on create/update.
+- If `task_id` is sent, the task must belong to the same `company_id`.
+- If `task_id` is sent, `garden_id` must match the task garden.
 
 ### `GET /product-usage/:id?company_id=<uuid>`
 

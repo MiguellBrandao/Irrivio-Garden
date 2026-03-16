@@ -4,7 +4,12 @@ import {
   requireActiveCompanyId,
 } from "@/lib/auth/company"
 
-import type { Product, SaveProductPayload } from "@/features/stock/types"
+import type {
+  Product,
+  SaveProductPayload,
+  SaveStockRulePayload,
+  StockRule,
+} from "@/features/stock/types"
 
 export function listProducts(authToken: string, search?: string) {
   const companyId = requireActiveCompanyId()
@@ -52,5 +57,58 @@ export function updateProduct(
     authToken,
     requireAuth: true,
     body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function listStockRules(authToken: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({ company_id: companyId })
+
+  return apiFetch<StockRule[]>(`/stock-rules?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function getStockRuleById(authToken: string, stockRuleId: string) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<StockRule>(appendCompanyId(`/stock-rules/${stockRuleId}`, companyId), {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function createStockRule(authToken: string, payload: SaveStockRulePayload) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<StockRule>("/stock-rules", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function updateStockRule(
+  authToken: string,
+  stockRuleId: string,
+  payload: SaveStockRulePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<Partial<StockRule> & { id: string }>(`/stock-rules/${stockRuleId}`, {
+    method: "PATCH",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function deleteStockRule(authToken: string, stockRuleId: string) {
+  return apiFetch<void>(`/stock-rules/${stockRuleId}`, {
+    method: "DELETE",
+    authToken,
+    requireAuth: true,
   })
 }

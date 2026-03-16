@@ -166,7 +166,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
           </div>
           <div className="flex flex-wrap gap-2">
             {mode === "edit" && quoteQuery.data ? (
-              <GenerateQuotePdfButton quote={quoteQuery.data} variant="outline" label="Gerar PDF" />
+              <GenerateQuotePdfButton quote={quoteQuery.data} variant="outline" size="sm" />
             ) : null}
             <Button asChild variant="outline">
               <Link href="/quotes">Voltar a listagem</Link>

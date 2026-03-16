@@ -85,6 +85,34 @@
       "when": 1773651000000,
       "tag": "0011_quotes_garden_services_valid_until",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1773657000000,
+      "tag": "0012_product_usage_task_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1773663000000,
+      "tag": "0013_stock_rules_and_unit_price",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1773672000000,
+      "tag": "0014_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1773679800000,
+      "tag": "0015_irrigation_zones",
+      "breakpoints": true
     }
   ]
 }

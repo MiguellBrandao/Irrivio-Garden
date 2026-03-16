@@ -164,6 +164,30 @@ export const productUnitEnum = pgEnum('product_unit_enum', [
   'pack',
 ]);
 
+export const stockRuleOperatorEnum = pgEnum('stock_rule_operator_enum', [
+  'lt',
+  'lte',
+  'eq',
+  'gt',
+  'gte',
+]);
+
+export const expenseCategoryEnum = pgEnum('expense_category_enum', [
+  'fuel',
+  'tolls',
+  'parking',
+  'equipment',
+  'maintenance',
+  'transport',
+  'other',
+]);
+
+export const irrigationFrequencyEnum = pgEnum('irrigation_frequency_enum', [
+  'daily',
+  'every_n_days',
+  'weekly',
+]);
+
 export const products = pgTable('products', {
   id: uuid('id').defaultRandom().primaryKey(),
   companyId: uuid('company_id')
@@ -174,6 +198,29 @@ export const products = pgTable('products', {
   stockQuantity: numeric('stock_quantity', { precision: 10, scale: 2 })
     .default('0')
     .notNull(),
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2 })
+    .default('0')
+    .notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const stockRules = pgTable('stock_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  operator: stockRuleOperatorEnum('operator').notNull(),
+  thresholdQuantity: numeric('threshold_quantity', {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
+  emails: text('emails')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -188,15 +235,53 @@ export const productUsage = pgTable('product_usage', {
   gardenId: uuid('garden_id')
     .notNull()
     .references(() => gardens.id, { onDelete: 'cascade' }),
+  taskId: uuid('task_id').references(() => tasks.id, {
+    onDelete: 'set null',
+  }),
   companyMembershipId: uuid('company_membership_id').references(
     () => companyMemberships.id,
     {
-    onDelete: 'set null',
+      onDelete: 'set null',
     },
   ),
   quantity: numeric('quantity', { precision: 10, scale: 2 }).notNull(),
   date: date('date').notNull(),
   notes: text('notes'),
+});
+
+export const expenses = pgTable('expenses', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  gardenId: uuid('garden_id')
+    .notNull()
+    .references(() => gardens.id, { onDelete: 'cascade' }),
+  category: expenseCategoryEnum('category').notNull(),
+  description: text('description'),
+  date: date('date').notNull(),
+});
+
+export const irrigationZones = pgTable('irrigation_zones', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  gardenId: uuid('garden_id')
+    .notNull()
+    .references(() => gardens.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 150 }).notNull(),
+  frequencyType: irrigationFrequencyEnum('frequency_type').notNull(),
+  intervalDays: integer('interval_days'),
+  weekDays: text('week_days')
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::text[]`),
+  startDate: date('start_date').notNull(),
+  startTime: time('start_time').notNull(),
+  endTime: time('end_time').notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const payments = pgTable('payments', {

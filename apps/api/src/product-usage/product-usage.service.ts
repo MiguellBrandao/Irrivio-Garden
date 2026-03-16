@@ -46,10 +46,11 @@ export class ProductUsageService {
         .filter((membership) => membership.role === 'admin')
         .map((membership) => membership.company_id),
     );
+    const employeeMemberships = accessibleMemberships.filter(
+      (membership) => membership.role === 'employee',
+    );
     const employeeMembershipIds = new Set(
-      accessibleMemberships
-        .filter((membership) => membership.role === 'employee')
-        .map((membership) => membership.id),
+      employeeMemberships.map((membership) => membership.id),
     );
 
     const rows = await db
@@ -58,23 +59,43 @@ export class ProductUsageService {
         company_id: productUsage.companyId,
         product_id: productUsage.productId,
         product_name: products.name,
+        product_unit: products.unit,
         garden_id: productUsage.gardenId,
+        task_id: productUsage.taskId,
+        task_team_id: tasks.teamId,
         company_membership_id: productUsage.companyMembershipId,
+        company_membership_name: companyMemberships.name,
         quantity: productUsage.quantity,
         date: productUsage.date,
         notes: productUsage.notes,
       })
       .from(productUsage)
       .innerJoin(products, eq(productUsage.productId, products.id))
+      .leftJoin(tasks, eq(productUsage.taskId, tasks.id))
+      .leftJoin(
+        companyMemberships,
+        eq(productUsage.companyMembershipId, companyMemberships.id),
+      )
       .where(and(...this.buildFilters(query, accessibleCompanyIds)))
       .orderBy(desc(productUsage.date), desc(productUsage.id));
 
-    if (employeeMembershipIds.size === 0) {
+    if (employeeMemberships.length === 0) {
       return rows;
     }
 
+    const visibleTeamIds = new Set(
+      await this.getVisibleTeamIdsForMemberships(
+        employeeMemberships.map((membership) => membership.id),
+        employeeMemberships.map((membership) => membership.company_id),
+      ),
+    );
+
     return rows.filter((usage) => {
       if (adminCompanyIds.has(usage.company_id)) {
+        return true;
+      }
+
+      if (usage.task_team_id && visibleTeamIds.has(usage.task_team_id)) {
         return true;
       }
 
@@ -101,11 +122,23 @@ export class ProductUsageService {
         usage.company_id,
       );
 
-    if (
-      requesterMembership.role === 'employee' &&
-      usage.company_membership_id !== requesterMembership.id
-    ) {
-      return null;
+    if (requesterMembership.role === 'employee') {
+      if (usage.company_membership_id === requesterMembership.id) {
+        return usage;
+      }
+
+      if (!usage.task_team_id) {
+        return null;
+      }
+
+      const visibleTeamIds = await this.getVisibleTeamIdsForMemberships(
+        [requesterMembership.id],
+        [usage.company_id],
+      );
+
+      if (!visibleTeamIds.includes(usage.task_team_id)) {
+        return null;
+      }
     }
 
     return usage;
@@ -118,23 +151,38 @@ export class ProductUsageService {
         dto.company_id,
       );
 
-    let targetCompanyMembershipId: string;
+    let targetCompanyMembershipId = requesterMembership.id;
 
     if (requesterMembership.role === 'admin') {
-      if (!dto.company_membership_id) {
-        throw new BadRequestException(
-          'company_membership_id is required when admin creates product usage',
-        );
-      }
-      targetCompanyMembershipId = dto.company_membership_id;
-    } else {
-      if (dto.company_membership_id !== undefined) {
-        throw new ForbiddenException(
-          'Employees cannot set company_membership_id',
-        );
+      targetCompanyMembershipId =
+        dto.company_membership_id ?? requesterMembership.id;
+    } else if (dto.company_membership_id !== undefined) {
+      throw new ForbiddenException('Employees cannot set company_membership_id');
+    }
+
+    const task = dto.task_id ? await this.findTask(dto.task_id) : null;
+
+    if (task) {
+      if (task.company_id !== dto.company_id) {
+        throw new BadRequestException('Task does not belong to this company');
       }
 
-      targetCompanyMembershipId = requesterMembership.id;
+      if (task.garden_id !== dto.garden_id) {
+        throw new BadRequestException('garden_id must match task garden_id');
+      }
+
+      if (requesterMembership.role === 'employee') {
+        if (!task.team_id) {
+          throw new BadRequestException('Task has no team assigned');
+        }
+
+        await this.assertMembershipInTeam(
+          requesterMembership.id,
+          dto.company_id,
+          task.team_id,
+        );
+      }
+    } else if (requesterMembership.role === 'employee') {
       await this.assertCompanyMembershipCanAccessGarden(
         requesterMembership.id,
         dto.garden_id,
@@ -158,6 +206,7 @@ export class ProductUsageService {
           companyId: dto.company_id,
           productId: dto.product_id,
           gardenId: dto.garden_id,
+          taskId: dto.task_id ?? null,
           companyMembershipId: targetCompanyMembershipId,
           quantity: dto.quantity.toString(),
           date: dto.date,
@@ -168,6 +217,7 @@ export class ProductUsageService {
           company_id: productUsage.companyId,
           product_id: productUsage.productId,
           garden_id: productUsage.gardenId,
+          task_id: productUsage.taskId,
           company_membership_id: productUsage.companyMembershipId,
           quantity: productUsage.quantity,
           date: productUsage.date,
@@ -197,9 +247,9 @@ export class ProductUsageService {
       );
 
     if (requesterMembership.role === 'employee') {
-      if (current.company_membership_id !== requesterMembership.id) {
+      if (!current.task_team_id) {
         throw new ForbiddenException(
-          'You can only update your own product usage logs',
+          'Employees can only update product usage linked to assigned tasks',
         );
       }
 
@@ -208,19 +258,49 @@ export class ProductUsageService {
           'Employees cannot update company_membership_id',
         );
       }
+
+      await this.assertMembershipInTeam(
+        requesterMembership.id,
+        current.company_id,
+        current.task_team_id,
+      );
     }
 
     const targetProductId = dto.product_id ?? current.product_id;
     const targetGardenId = dto.garden_id ?? current.garden_id;
+    const targetTaskId = dto.task_id ?? current.task_id;
     const targetCompanyMembershipId =
       dto.company_membership_id ?? current.company_membership_id;
     const targetQuantity = dto.quantity ?? Number(current.quantity);
 
-    if (requesterMembership.role === 'employee') {
-      await this.assertCompanyMembershipCanAccessGarden(
-        requesterMembership.id,
-        targetGardenId,
-        current.company_id,
+    if (targetTaskId) {
+      const task = await this.findTask(targetTaskId);
+      if (!task) {
+        throw new NotFoundException('Task not found');
+      }
+
+      if (task.company_id !== current.company_id) {
+        throw new BadRequestException('Task does not belong to this company');
+      }
+
+      if (task.garden_id !== targetGardenId) {
+        throw new BadRequestException('garden_id must match task garden_id');
+      }
+
+      if (requesterMembership.role === 'employee') {
+        if (!task.team_id) {
+          throw new BadRequestException('Task has no team assigned');
+        }
+
+        await this.assertMembershipInTeam(
+          requesterMembership.id,
+          current.company_id,
+          task.team_id,
+        );
+      }
+    } else if (requesterMembership.role === 'employee') {
+      throw new ForbiddenException(
+        'Employees can only update product usage linked to assigned tasks',
       );
     }
 
@@ -236,6 +316,7 @@ export class ProductUsageService {
     const setPayload: {
       productId?: string;
       gardenId?: string;
+      taskId?: string;
       companyMembershipId?: string;
       quantity?: string;
       date?: string;
@@ -253,6 +334,10 @@ export class ProductUsageService {
     if (dto.garden_id !== undefined) {
       setPayload.gardenId = dto.garden_id;
       responsePayload.garden_id = dto.garden_id;
+    }
+    if (dto.task_id !== undefined) {
+      setPayload.taskId = dto.task_id;
+      responsePayload.task_id = dto.task_id;
     }
     if (dto.company_membership_id !== undefined) {
       setPayload.companyMembershipId = dto.company_membership_id;
@@ -316,7 +401,25 @@ export class ProductUsageService {
       return false;
     }
 
-    await this.companiesService.assertAdminAccess(requester.id, current.company_id);
+    const requesterMembership =
+      await this.companiesService.assertUserBelongsToCompany(
+        requester.id,
+        current.company_id,
+      );
+
+    if (requesterMembership.role === 'employee') {
+      if (!current.task_team_id) {
+        throw new ForbiddenException(
+          'Employees can only delete product usage linked to assigned tasks',
+        );
+      }
+
+      await this.assertMembershipInTeam(
+        requesterMembership.id,
+        current.company_id,
+        current.task_team_id,
+      );
+    }
 
     return db.transaction(async (tx) => {
       await this.adjustProductStock(
@@ -342,6 +445,9 @@ export class ProductUsageService {
     }
     if (query.garden_id) {
       filters.push(eq(productUsage.gardenId, query.garden_id));
+    }
+    if (query.task_id) {
+      filters.push(eq(productUsage.taskId, query.task_id));
     }
     if (query.company_membership_id) {
       filters.push(
@@ -396,15 +502,39 @@ export class ProductUsageService {
         company_id: productUsage.companyId,
         product_id: productUsage.productId,
         product_name: products.name,
+        product_unit: products.unit,
         garden_id: productUsage.gardenId,
+        task_id: productUsage.taskId,
+        task_team_id: tasks.teamId,
         company_membership_id: productUsage.companyMembershipId,
+        company_membership_name: companyMemberships.name,
         quantity: productUsage.quantity,
         date: productUsage.date,
         notes: productUsage.notes,
       })
       .from(productUsage)
       .innerJoin(products, eq(productUsage.productId, products.id))
+      .leftJoin(tasks, eq(productUsage.taskId, tasks.id))
+      .leftJoin(
+        companyMemberships,
+        eq(productUsage.companyMembershipId, companyMemberships.id),
+      )
       .where(eq(productUsage.id, id))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  private async findTask(taskId: string) {
+    const rows = await db
+      .select({
+        id: tasks.id,
+        company_id: tasks.companyId,
+        garden_id: tasks.gardenId,
+        team_id: tasks.teamId,
+      })
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
       .limit(1);
 
     return rows[0] ?? null;
@@ -471,7 +601,10 @@ export class ProductUsageService {
       )
       .innerJoin(
         gardens,
-        and(eq(tasks.gardenId, gardens.id), eq(tasks.companyId, gardens.companyId)),
+        and(
+          eq(tasks.gardenId, gardens.id),
+          eq(tasks.companyId, gardens.companyId),
+        ),
       )
       .where(
         and(
@@ -490,5 +623,53 @@ export class ProductUsageService {
         'You can only register product usage for your gardens',
       );
     }
+  }
+
+  private async assertMembershipInTeam(
+    companyMembershipId: string,
+    companyId: string,
+    teamId: string,
+  ) {
+    const teamMembership = await db
+      .select({ team_id: companyMembershipTeams.teamId })
+      .from(companyMembershipTeams)
+      .where(
+        and(
+          eq(companyMembershipTeams.companyMembershipId, companyMembershipId),
+          eq(companyMembershipTeams.companyId, companyId),
+          eq(companyMembershipTeams.teamId, teamId),
+        ),
+      )
+      .limit(1);
+
+    if (!teamMembership[0]) {
+      throw new ForbiddenException(
+        'You cannot register product usage for this team',
+      );
+    }
+  }
+
+  private async getVisibleTeamIdsForMemberships(
+    companyMembershipIds: string[],
+    companyIds: string[],
+  ) {
+    if (companyMembershipIds.length === 0 || companyIds.length === 0) {
+      return [];
+    }
+
+    const rows = await db
+      .select({ team_id: companyMembershipTeams.teamId })
+      .from(companyMembershipTeams)
+      .where(
+        and(
+          inArray(
+            companyMembershipTeams.companyMembershipId,
+            companyMembershipIds,
+          ),
+          inArray(companyMembershipTeams.companyId, companyIds),
+        ),
+      );
+
+    return [...new Set(rows.map((row) => row.team_id))];
   }
 }

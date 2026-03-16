@@ -4,7 +4,16 @@ import {
   requireActiveCompanyId,
 } from "@/lib/auth/company"
 
-import type { Garden, SaveGardenPayload } from "@/features/gardens/types"
+import type {
+  GardenExpense,
+  GardenProductUsage,
+  Garden,
+  IrrigationZone,
+  SaveGardenExpensePayload,
+  SaveGardenPayload,
+  SaveGardenProductUsagePayload,
+  SaveIrrigationZonePayload,
+} from "@/features/gardens/types"
 
 export function listGardens(authToken: string) {
   const companyId = requireActiveCompanyId()
@@ -52,6 +61,191 @@ export function updateGarden(
 
 export function deleteGarden(authToken: string, gardenId: string) {
   return apiFetch<void>(`/gardens/${gardenId}`, {
+    method: "DELETE",
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function listGardenProductUsage(authToken: string, gardenId: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({
+    company_id: companyId,
+    garden_id: gardenId,
+  })
+
+  return apiFetch<GardenProductUsage[]>(`/product-usage?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function createGardenProductUsage(
+  authToken: string,
+  gardenId: string,
+  payload: SaveGardenProductUsagePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<GardenProductUsage>("/product-usage", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function updateGardenProductUsage(
+  authToken: string,
+  usageId: string,
+  gardenId: string,
+  payload: SaveGardenProductUsagePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<Partial<GardenProductUsage> & { id: string }>(`/product-usage/${usageId}`, {
+    method: "PATCH",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function deleteGardenProductUsage(authToken: string, usageId: string) {
+  return apiFetch<void>(`/product-usage/${usageId}`, {
+    method: "DELETE",
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function listGardenExpenses(authToken: string, gardenId: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({
+    company_id: companyId,
+    garden_id: gardenId,
+  })
+
+  return apiFetch<GardenExpense[]>(`/expenses?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function createGardenExpense(
+  authToken: string,
+  gardenId: string,
+  payload: SaveGardenExpensePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<GardenExpense>("/expenses", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function updateGardenExpense(
+  authToken: string,
+  expenseId: string,
+  gardenId: string,
+  payload: SaveGardenExpensePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<Partial<GardenExpense> & { id: string }>(`/expenses/${expenseId}`, {
+    method: "PATCH",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function deleteGardenExpense(authToken: string, expenseId: string) {
+  return apiFetch<void>(`/expenses/${expenseId}`, {
+    method: "DELETE",
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function listGardenIrrigationZones(authToken: string, gardenId: string) {
+  return listIrrigationZones(authToken, gardenId)
+}
+
+export function listIrrigationZones(authToken: string, gardenId?: string) {
+  const companyId = requireActiveCompanyId()
+  const params = new URLSearchParams({ company_id: companyId })
+
+  if (gardenId) {
+    params.set("garden_id", gardenId)
+  }
+
+  return apiFetch<IrrigationZone[]>(`/irrigation-zones?${params.toString()}`, {
+    authToken,
+    requireAuth: true,
+  })
+}
+
+export function createGardenIrrigationZone(
+  authToken: string,
+  gardenId: string,
+  payload: SaveIrrigationZonePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<IrrigationZone>("/irrigation-zones", {
+    method: "POST",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function updateGardenIrrigationZone(
+  authToken: string,
+  zoneId: string,
+  gardenId: string,
+  payload: SaveIrrigationZonePayload
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<Partial<IrrigationZone> & { id: string }>(`/irrigation-zones/${zoneId}`, {
+    method: "PATCH",
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({
+      ...payload,
+      garden_id: gardenId,
+      company_id: companyId,
+    }),
+  })
+}
+
+export function deleteGardenIrrigationZone(authToken: string, zoneId: string) {
+  return apiFetch<void>(`/irrigation-zones/${zoneId}`, {
     method: "DELETE",
     authToken,
     requireAuth: true,

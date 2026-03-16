@@ -38,6 +38,7 @@ apps/api/
    |- payments/
    |- product-usage/
    |- products/
+   |- stock-rules/
    |- quotes/
    |- tasks/
    |- teams/
@@ -90,6 +91,7 @@ Notes:
 
 - The web currently uses `stock` as the product feature namespace.
 - `dashboard` is still lightweight, but `quotes` now has list, create, edit, and printable document flows.
+- The `stock` feature now covers both product stock and stock business rules.
 - The auth store keeps `companies` plus `activeCompanyId`.
 - Feature API wrappers append `company_id` to company-scoped requests.
 

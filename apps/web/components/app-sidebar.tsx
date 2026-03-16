@@ -43,6 +43,14 @@ const commonItems = [
   },
 ]
 
+const employeeManagementItems = [
+  {
+    name: "Jardins",
+    url: "/gardens",
+    icon: <HugeiconsIcon icon={Leaf02Icon} strokeWidth={2} />,
+  },
+]
+
 const adminManagementItems = [
   {
     name: "Jardins",
@@ -93,7 +101,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <NavProjects projects={adminManagementItems} title="Administracao" />
             <NavSecondary items={adminFinanceItems} title="Financeiro" />
           </>
-        ) : null}
+        ) : (
+          <NavProjects projects={employeeManagementItems} title="Operacao" />
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser

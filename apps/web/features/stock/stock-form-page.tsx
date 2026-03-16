@@ -207,24 +207,45 @@ export function StockFormPage({ mode, productId }: StockFormPageProps) {
                 />
               </div>
 
-              <Controller
-                control={form.control}
-                name="stock_quantity"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="product-stock-quantity">Valor em stock</FieldLabel>
-                    <Input
-                      {...field}
-                      id="product-stock-quantity"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      aria-invalid={fieldState.invalid}
-                    />
-                    <FieldError errors={[fieldState.error]} />
-                  </Field>
-                )}
-              />
+              <div className="grid gap-5 md:grid-cols-2">
+                <Controller
+                  control={form.control}
+                  name="stock_quantity"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="product-stock-quantity">Valor em stock</FieldLabel>
+                      <Input
+                        {...field}
+                        id="product-stock-quantity"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-invalid={fieldState.invalid}
+                      />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  control={form.control}
+                  name="unit_price"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="product-unit-price">Valor por unidade</FieldLabel>
+                      <Input
+                        {...field}
+                        id="product-unit-price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-invalid={fieldState.invalid}
+                      />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+              </div>
 
               {saveMutation.isError ? (
                 <FieldError>{saveMutation.error.message}</FieldError>

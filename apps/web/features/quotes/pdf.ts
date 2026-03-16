@@ -7,29 +7,49 @@ import {
 } from "@/features/quotes/utils"
 import type { AuthCompany } from "@/lib/auth/types"
 
-type QuotePdfInput = {
+type QuoteExportInput = {
   quote: Quote
   company: AuthCompany
 }
 
-type PdfDocument = InstanceType<(typeof import("jspdf"))["jsPDF"]>
+type QuoteRenderResult = {
+  canvas: HTMLCanvasElement
+  width: number
+  height: number
+}
 
-const PAGE_MARGIN = 18
-const PAGE_BOTTOM_MARGIN = 22
+type TextBlock = {
+  lines: string[]
+  height: number
+}
+
+const BASE_WIDTH = 794
+const MIN_BASE_HEIGHT = 1123
+const RENDER_SCALE = 2
+const PAGE_WIDTH_PT = 595.28
+const FOOTER_SIDE_PADDING = 72
+
+const colors = {
+  text: "#1f2f27",
+  muted: "#697462",
+  accent: "#215442",
+  accentMuted: "#7d8769",
+  border: "#e8dfcc",
+  borderSoft: "#efe8da",
+  surface: "#f8f4ea",
+}
 
 export async function downloadQuotePdf({
   quote,
   company,
-}: QuotePdfInput) {
+}: QuoteExportInput) {
+  const rendered = await renderQuoteCanvas({ quote, company })
   const { jsPDF } = await import("jspdf")
-  const doc = new jsPDF({ unit: "mm", format: "a4" })
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const contentWidth = pageWidth - PAGE_MARGIN * 2
-  const validUntil = getQuoteValidUntilFallback(quote)
-  const logoDataUrl = company.logo_path
-    ? await loadImageDataUrl(company.logo_path).catch(() => null)
-    : null
+  const pageHeightPt = PAGE_WIDTH_PT * (rendered.height / rendered.width)
+  const doc = new jsPDF({
+    unit: "pt",
+    format: [PAGE_WIDTH_PT, pageHeightPt],
+  })
 
   doc.setProperties({
     title: buildQuoteDocumentTitle(quote),
@@ -38,205 +58,521 @@ export async function downloadQuotePdf({
     creator: "Floripa Intranet",
   })
 
-  let y = PAGE_MARGIN
-  let headerBottomY = y + 34
-
-  if (logoDataUrl) {
-    const imageProps = doc.getImageProperties(logoDataUrl)
-    const maxLogoWidth = 46
-    const maxLogoHeight = 28
-    const rawLogoHeight = (imageProps.height / imageProps.width) * maxLogoWidth
-    const logoScale = rawLogoHeight > maxLogoHeight ? maxLogoHeight / rawLogoHeight : 1
-    const logoWidth = maxLogoWidth * logoScale
-    const logoHeight = rawLogoHeight * logoScale
-
-    doc.addImage(logoDataUrl, imageProps.fileType ?? "PNG", PAGE_MARGIN, y, logoWidth, logoHeight)
-    headerBottomY = Math.max(headerBottomY, y + logoHeight)
-  }
-
-  doc.setTextColor(31, 47, 39)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(24)
-  doc.text("Orcamento", pageWidth - PAGE_MARGIN, y + 11, { align: "right" })
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  doc.setTextColor(105, 116, 98)
-  doc.text("Documento comercial", pageWidth - PAGE_MARGIN, y + 18, {
-    align: "right",
-  })
-
-  doc.setFontSize(11)
-  doc.text(`Criado em ${formatQuoteDate(quote.created_at)}`, pageWidth - PAGE_MARGIN, y + 28, {
-    align: "right",
-  })
-  doc.text(`Valido ate ${formatQuoteDate(validUntil)}`, pageWidth - PAGE_MARGIN, y + 34, {
-    align: "right",
-  })
-  headerBottomY = Math.max(headerBottomY, y + 34)
-
-  y = headerBottomY + 10
-
-  doc.setDrawColor(232, 223, 204)
-  doc.line(PAGE_MARGIN, y, pageWidth - PAGE_MARGIN, y)
-  y += 12
-
-  drawSectionLabel(doc, "Cliente", PAGE_MARGIN, y)
-  y += 6
-
-  doc.setTextColor(31, 47, 39)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(18)
-  doc.text(quote.garden_client_name, PAGE_MARGIN, y)
-  y += 7
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(11)
-  const clientInfoBottomY = drawWrappedText(
-    doc,
-    quote.garden_address,
-    PAGE_MARGIN,
-    y,
-    contentWidth * 0.58,
-    5.5
+  doc.addImage(
+    rendered.canvas.toDataURL("image/png"),
+    "PNG",
+    0,
+    0,
+    PAGE_WIDTH_PT,
+    pageHeightPt
   )
-
-  const priceBoxX = PAGE_MARGIN + contentWidth * 0.63
-  const priceBoxY = y - 21
-  const priceBoxWidth = contentWidth * 0.37
-  const priceNote = doc.splitTextToSize(
-    "Valor base sem IVA incluido. Sujeito a confirmacao final no momento da adjudicacao.",
-    priceBoxWidth - 10
-  )
-  const priceBoxHeight = 23 + priceNote.length * 4.1
-
-  doc.setFillColor(248, 244, 234)
-  doc.setDrawColor(232, 223, 204)
-  doc.roundedRect(priceBoxX, priceBoxY, priceBoxWidth, priceBoxHeight, 4, 4, "FD")
-
-  doc.setTextColor(125, 135, 105)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
-  doc.text("VALOR PROPOSTO", priceBoxX + 5, priceBoxY + 7)
-
-  doc.setTextColor(33, 84, 66)
-  doc.setFontSize(20)
-  doc.text(formatQuoteCurrency(Number(quote.price)), priceBoxX + 5, priceBoxY + 16)
-
-  doc.setTextColor(68, 82, 72)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8.8)
-  doc.text(priceNote, priceBoxX + 5, priceBoxY + 22)
-
-  y = Math.max(clientInfoBottomY, priceBoxY + priceBoxHeight) + 10
-  doc.setDrawColor(239, 232, 218)
-  doc.line(PAGE_MARGIN, y, pageWidth - PAGE_MARGIN, y)
-  y += 12
-
-  drawSectionLabel(doc, "Servicos incluidos", PAGE_MARGIN, y)
-  y += 6
-
-  doc.setTextColor(31, 47, 39)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(16)
-  doc.text("Proposta de intervencao", PAGE_MARGIN, y)
-  y += 10
-
-  quote.services.forEach((service, index) => {
-    y = ensurePageSpace(doc, y, 18, pageHeight, pageWidth)
-
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(11)
-    doc.setTextColor(33, 84, 66)
-    doc.text(`${index + 1}.`, PAGE_MARGIN, y + 1)
-
-    doc.setTextColor(31, 47, 39)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(11)
-    y = drawWrappedText(doc, service, PAGE_MARGIN + 9, y + 1, contentWidth - 9, 5.8)
-    y += 2
-  })
-
-  doc.setDrawColor(232, 223, 204)
-  doc.line(PAGE_MARGIN, pageHeight - 46, pageWidth - PAGE_MARGIN, pageHeight - 46)
-
-  drawSectionLabel(doc, "Contacto e faturacao", PAGE_MARGIN, pageHeight - 38)
-  doc.setTextColor(31, 47, 39)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10.5)
-  const footerLines = [
-    company.address,
-    `NIF: ${company.nif}`,
-    `Telm: ${company.mobile_phone}`,
-    company.email,
-    `IBAN: ${company.iban}`,
-  ]
-  doc.text(footerLines, pageWidth / 2, pageHeight - 28, { align: "center" })
-
-  doc.save(buildQuoteFileName(quote))
+  doc.save(buildQuoteFileName(quote, "pdf"))
 }
 
-function drawSectionLabel(doc: PdfDocument, label: string, x: number, y: number) {
-  doc.setTextColor(125, 135, 105)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
-  doc.text(label.toUpperCase(), x, y)
+export async function downloadQuotePng({
+  quote,
+  company,
+}: QuoteExportInput) {
+  const rendered = await renderQuoteCanvas({ quote, company })
+  const blob = await canvasToBlob(rendered.canvas)
+
+  downloadBlob(blob, buildQuoteFileName(quote, "png"))
+}
+
+async function renderQuoteCanvas({
+  quote,
+  company,
+}: QuoteExportInput): Promise<QuoteRenderResult> {
+  const logoImage = company.logo_path
+    ? await loadImage(company.logo_path).catch(() => null)
+    : null
+
+  const layout = buildQuoteLayout({ quote, company, logoImage })
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(layout.width * RENDER_SCALE)
+  canvas.height = Math.round(layout.height * RENDER_SCALE)
+
+  const context = canvas.getContext("2d")
+  if (!context) {
+    throw new Error("Nao foi possivel criar o documento do orcamento.")
+  }
+
+  context.scale(RENDER_SCALE, RENDER_SCALE)
+  drawQuoteDocument({
+    context,
+    width: layout.width,
+    height: layout.height,
+    quote,
+    company,
+    logoImage,
+  })
+
+  return {
+    canvas,
+    width: layout.width,
+    height: layout.height,
+  }
+}
+
+function buildQuoteLayout({
+  quote,
+  company,
+  logoImage,
+}: QuoteExportInput & { logoImage: HTMLImageElement | null }) {
+  const measureCanvas = document.createElement("canvas")
+  const context = measureCanvas.getContext("2d")
+  if (!context) {
+    return { width: BASE_WIDTH, height: MIN_BASE_HEIGHT }
+  }
+
+  const width = BASE_WIDTH
+  const marginX = 56
+  const topY = 48
+  const contentWidth = width - marginX * 2
+  const clientTextWidth = contentWidth * 0.4
+  const priceBoxWidth = 360
+
+  let headerBottomY = topY + 110
+
+  if (logoImage) {
+    const logoSize = fitIntoBox(logoImage.width, logoImage.height, 208, 112)
+    headerBottomY = Math.max(headerBottomY, topY + logoSize.height)
+  }
+
+  const clientStartY = headerBottomY + 44
+
+  setCanvasFont(context, 600, 32)
+  const addressBlock = measureTextBlock(context, quote.garden_address, clientTextWidth, 28)
+
+  const priceBoxY = clientStartY + 24
+  setCanvasFont(context, 400, 14)
+  const priceNote = measureTextBlock(
+    context,
+    "Valor base sem IVA incluido. Sujeito a confirmacao final no momento da adjudicacao.",
+    priceBoxWidth - 40,
+    21
+  )
+  const priceBoxHeight = 94 + priceNote.height
+
+  const clientBlockBottomY = clientStartY + 68 + addressBlock.height
+  const clientAreaBottomY = Math.max(clientBlockBottomY, priceBoxY + priceBoxHeight)
+
+  const servicesStartY = clientAreaBottomY + 42
+  setCanvasFont(context, 400, 16)
+  const serviceBlocks = quote.services.map((service) =>
+    measureTextBlock(context, service, contentWidth - 28, 24)
+  )
+  const servicesHeight =
+    40 +
+    serviceBlocks.reduce((total, block) => total + block.height + 6, 0)
+
+  const footerBlockHeight = measureFooterBlockHeight(context, company, contentWidth)
+  const naturalHeight = servicesStartY + servicesHeight + 68 + footerBlockHeight
+
+  return {
+    width,
+    height: Math.max(MIN_BASE_HEIGHT, Math.ceil(naturalHeight)),
+  }
+}
+
+function drawQuoteDocument({
+  context,
+  width,
+  height,
+  quote,
+  company,
+  logoImage,
+}: QuoteExportInput & {
+  context: CanvasRenderingContext2D
+  width: number
+  height: number
+  logoImage: HTMLImageElement | null
+}) {
+  const marginX = 56
+  const topY = 48
+  const contentWidth = width - marginX * 2
+  const clientTextWidth = contentWidth * 0.4
+  const priceBoxWidth = 360
+  const priceBoxX = width - marginX - priceBoxWidth
+  const validUntil = getQuoteValidUntilFallback(quote)
+  const footerBlockHeight = measureFooterBlockHeight(context, company, contentWidth)
+
+  context.fillStyle = "#ffffff"
+  context.fillRect(0, 0, width, height)
+  context.textBaseline = "top"
+
+  let headerBottomY = topY + 110
+
+  if (logoImage) {
+    const logoSize = fitIntoBox(logoImage.width, logoImage.height, 208, 112)
+    context.drawImage(logoImage, marginX, topY, logoSize.width, logoSize.height)
+    headerBottomY = Math.max(headerBottomY, topY + logoSize.height)
+  }
+
+  context.textAlign = "right"
+  setCanvasFill(context, colors.text)
+  setCanvasFont(context, 600, 44)
+  context.fillText("Orcamento", width - marginX, topY + 6)
+
+  setCanvasFill(context, colors.accentMuted)
+  setCanvasFont(context, 600, 13)
+  context.fillText("DOCUMENTO COMERCIAL", width - marginX, topY + 64)
+
+  setCanvasFill(context, colors.muted)
+  setCanvasFont(context, 400, 16)
+  context.fillText(`Criado em ${formatQuoteDate(quote.created_at)}`, width - marginX, topY + 92)
+  context.fillText(`Valido ate ${formatQuoteDate(validUntil)}`, width - marginX, topY + 118)
+  context.textAlign = "left"
+  headerBottomY = Math.max(headerBottomY, topY + 134)
+
+  const separatorY = headerBottomY + 18
+  drawLine(context, marginX, separatorY, width - marginX, separatorY, colors.border)
+
+  const clientStartY = separatorY + 34
+  drawSectionLabel(context, "Cliente", marginX, clientStartY)
+
+  setCanvasFill(context, colors.text)
+  setCanvasFont(context, 600, 32)
+  context.fillText(quote.garden_client_name, marginX, clientStartY + 30)
+
+  setCanvasFill(context, colors.muted)
+  setCanvasFont(context, 400, 16)
+  const clientAddressBottomY = drawWrappedText(
+    context,
+    quote.garden_address,
+    marginX,
+    clientStartY + 84,
+    clientTextWidth,
+    28
+  )
+
+  const priceBoxY = clientStartY + 24
+  const priceNoteBottomY = drawPriceBox(
+    context,
+    priceBoxX,
+    priceBoxY,
+    priceBoxWidth,
+    quote
+  )
+
+  const clientAreaBottomY = Math.max(clientAddressBottomY, priceNoteBottomY)
+  const servicesSeparatorY = clientAreaBottomY + 18
+  drawLine(
+    context,
+    marginX,
+    servicesSeparatorY,
+    width - marginX,
+    servicesSeparatorY,
+    colors.borderSoft
+  )
+
+  const servicesStartY = servicesSeparatorY + 24
+  drawSectionLabel(context, "Servicos incluidos", marginX, servicesStartY)
+  setCanvasFill(context, colors.text)
+  setCanvasFont(context, 600, 28)
+  context.fillText("Proposta de intervencao", marginX, servicesStartY + 14)
+
+  setCanvasFont(context, 400, 16)
+  let currentY = servicesStartY + 46
+  quote.services.forEach((service) => {
+    setCanvasFill(context, colors.accent)
+    setCanvasFont(context, 600, 16)
+    context.fillText("-", marginX, currentY)
+
+    setCanvasFill(context, colors.text)
+    setCanvasFont(context, 400, 16)
+    currentY = drawWrappedText(
+      context,
+      service,
+      marginX + 20,
+      currentY,
+      contentWidth - 20,
+      24
+    )
+    currentY += 6
+  })
+
+  const footerTopY = height - footerBlockHeight
+  drawLine(context, marginX, footerTopY, width - marginX, footerTopY, colors.border)
+  drawSectionLabel(context, "Contacto e faturacao", marginX, footerTopY + 20)
+
+  setCanvasFill(context, colors.text)
+  setCanvasFont(context, 400, 15)
+  context.textAlign = "center"
+  drawFooterDetails(context, company, width / 2, footerTopY + 48, contentWidth)
+  context.textAlign = "left"
+}
+
+function drawPriceBox(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  quote: Quote
+) {
+  const noteWidth = width - 40
+
+  setCanvasFont(context, 400, 14)
+  const noteLines = wrapText(
+    context,
+    "Valor base sem IVA incluido. Sujeito a confirmacao final no momento da adjudicacao.",
+    noteWidth
+  )
+  const noteHeight = noteLines.length * 21
+  const height = 94 + noteHeight
+
+  context.fillStyle = colors.surface
+  context.strokeStyle = colors.border
+  context.lineWidth = 1
+  roundRect(context, x, y, width, height, 24)
+  context.fill()
+  context.stroke()
+
+  setCanvasFill(context, colors.accentMuted)
+  setCanvasFont(context, 600, 12)
+  context.fillText("VALOR PROPOSTO", x + 20, y + 18)
+
+  setCanvasFill(context, colors.accent)
+  setCanvasFont(context, 600, 34)
+  context.fillText(formatQuoteCurrency(Number(quote.price)), x + 20, y + 42)
+
+  setCanvasFill(context, "#445248")
+  setCanvasFont(context, 400, 14)
+  drawTextLines(context, noteLines, x + 20, y + 82, 21)
+
+  return y + height
+}
+
+function drawSectionLabel(
+  context: CanvasRenderingContext2D,
+  label: string,
+  x: number,
+  y: number
+) {
+  setCanvasFill(context, colors.accentMuted)
+  setCanvasFont(context, 600, 12)
+  context.fillText(label.toUpperCase(), x, y)
 }
 
 function drawWrappedText(
-  doc: PdfDocument,
+  context: CanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
   maxWidth: number,
   lineHeight: number
 ) {
-  const lines = doc.splitTextToSize(text, maxWidth)
-  doc.text(lines, x, y)
-  return y + Math.max(lines.length, 1) * lineHeight
+  const lines = wrapText(context, text, maxWidth)
+  drawTextLines(context, lines, x, y, lineHeight)
+  return y + lines.length * lineHeight
 }
 
-function ensurePageSpace(
-  doc: PdfDocument,
-  currentY: number,
-  blockHeight: number,
-  pageHeight: number,
-  pageWidth: number
+function drawTextLines(
+  context: CanvasRenderingContext2D,
+  lines: string[],
+  x: number,
+  y: number,
+  lineHeight: number
 ) {
-  if (currentY + blockHeight <= pageHeight - PAGE_BOTTOM_MARGIN) {
-    return currentY
-  }
-
-  doc.addPage()
-  doc.setDrawColor(232, 223, 204)
-  doc.line(PAGE_MARGIN, PAGE_MARGIN, pageWidth - PAGE_MARGIN, PAGE_MARGIN)
-  return PAGE_MARGIN + 10
-}
-
-async function loadImageDataUrl(path: string) {
-  const resolvedUrl = new URL(path, window.location.origin).toString()
-  const response = await fetch(resolvedUrl)
-
-  if (!response.ok) {
-    throw new Error("Nao foi possivel carregar o logo da empresa.")
-  }
-
-  const blob = await response.blob()
-  return blobToDataUrl(blob)
-}
-
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
+  lines.forEach((line, index) => {
+    context.fillText(line, x, y + index * lineHeight)
   })
 }
 
-function buildQuoteFileName(quote: Quote) {
+function measureTextBlock(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  lineHeight: number
+): TextBlock {
+  const lines = wrapText(context, text, maxWidth)
+  return {
+    lines,
+    height: lines.length * lineHeight,
+  }
+}
+
+function buildFooterLineGroups(company: AuthCompany) {
+  return [
+    company.address,
+    `NIF: ${company.nif}`,
+    `Telm: ${company.mobile_phone}`,
+    `Email: ${company.email}`,
+    `IBAN: ${company.iban}`,
+  ]
+}
+
+function measureFooterBlockHeight(
+  context: CanvasRenderingContext2D,
+  company: AuthCompany,
+  contentWidth: number
+) {
+  setCanvasFont(context, 400, 15)
+
+  const maxWidth = contentWidth - FOOTER_SIDE_PADDING
+  const totalTextLines = buildFooterLineGroups(company).reduce((total, line) => {
+    return total + wrapText(context, line, maxWidth).length
+  }, 0)
+
+  return 56 + totalTextLines * 24 + 12
+}
+
+function drawFooterDetails(
+  context: CanvasRenderingContext2D,
+  company: AuthCompany,
+  centerX: number,
+  startY: number,
+  contentWidth: number
+) {
+  const maxWidth = contentWidth - FOOTER_SIDE_PADDING
+  let currentY = startY
+
+  buildFooterLineGroups(company).forEach((line) => {
+    const wrappedLines = wrapText(context, line, maxWidth)
+    drawTextLines(context, wrappedLines, centerX, currentY, 24)
+    currentY += wrappedLines.length * 24
+  })
+}
+
+function wrapText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+) {
+  const normalized = text.trim()
+  if (!normalized) {
+    return [""]
+  }
+
+  const paragraphs = normalized.split("\n")
+  const lines: string[] = []
+
+  paragraphs.forEach((paragraph) => {
+    const words = paragraph.split(/\s+/)
+    let line = ""
+
+    words.forEach((word) => {
+      const nextLine = line ? `${line} ${word}` : word
+
+      if (context.measureText(nextLine).width <= maxWidth) {
+        line = nextLine
+        return
+      }
+
+      if (line) {
+        lines.push(line)
+      }
+      line = word
+    })
+
+    if (line) {
+      lines.push(line)
+    }
+  })
+
+  return lines.length > 0 ? lines : [""]
+}
+
+function fitIntoBox(
+  sourceWidth: number,
+  sourceHeight: number,
+  maxWidth: number,
+  maxHeight: number
+) {
+  const ratio = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight, 1)
+
+  return {
+    width: sourceWidth * ratio,
+    height: sourceHeight * ratio,
+  }
+}
+
+function setCanvasFont(
+  context: CanvasRenderingContext2D,
+  weight: 400 | 600,
+  size: number
+) {
+  context.font = `${weight} ${size}px "Segoe UI", Arial, sans-serif`
+}
+
+function setCanvasFill(context: CanvasRenderingContext2D, color: string) {
+  context.fillStyle = color
+}
+
+function drawLine(
+  context: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string
+) {
+  context.strokeStyle = color
+  context.lineWidth = 1
+  context.beginPath()
+  context.moveTo(x1, y1)
+  context.lineTo(x2, y2)
+  context.stroke()
+}
+
+function roundRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  context.beginPath()
+  context.moveTo(x + radius, y)
+  context.lineTo(x + width - radius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + radius)
+  context.lineTo(x + width, y + height - radius)
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+  context.lineTo(x + radius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - radius)
+  context.lineTo(x, y + radius)
+  context.quadraticCurveTo(x, y, x + radius, y)
+  context.closePath()
+}
+
+async function loadImage(path: string) {
+  const resolvedUrl = new URL(path, window.location.origin).toString()
+
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.crossOrigin = "anonymous"
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Nao foi possivel carregar o logo da empresa."))
+    image.src = resolvedUrl
+  })
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Nao foi possivel gerar a imagem do orcamento."))
+        return
+      }
+
+      resolve(blob)
+    }, "image/png")
+  })
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = objectUrl
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(objectUrl)
+}
+
+function buildQuoteFileName(quote: Quote, extension: "pdf" | "png") {
   const safeClientName = sanitizeFileName(quote.garden_client_name)
-  return `orcamento-${safeClientName || "cliente"}-${quote.id.slice(0, 8)}.pdf`
+  return `orcamento-${safeClientName || "cliente"}-${quote.id.slice(0, 8)}.${extension}`
 }
 
 function sanitizeFileName(value: string) {

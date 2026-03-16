@@ -1,10 +1,5 @@
-import { PrivatePagePlaceholder } from "@/components/private-page-placeholder"
+import { DashboardPageContent } from "@/features/dashboard/dashboard-page"
 
 export default function DashboardPage() {
-  return (
-    <PrivatePagePlaceholder
-      title="Dashboard"
-      description="Resumo operacional da empresa, com foco em trabalhos do dia, equipas no terreno e indicadores principais."
-    />
-  )
+  return <DashboardPageContent />
 }
