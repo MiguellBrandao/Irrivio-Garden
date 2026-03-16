@@ -470,7 +470,7 @@ function AdminDashboard({
           <FinanceMetricCard
             label="Recebido"
             value={formatCurrency(financeSummary.revenue)}
-            description="Pagamentos com data de liquidacao no periodo."
+            description="Pagamentos registados nos meses do periodo."
             isLoading={isFinanceSummaryLoading}
           />
           <FinanceMetricCard
@@ -918,13 +918,7 @@ function buildDashboardFinanceSummary({
   dateRange: DashboardDateRange
 }): DashboardFinanceSummary {
   const revenue = payments.reduce((sum, payment) => {
-    if (!payment.paid_at) {
-      return sum
-    }
-
-    const paidAt = new Date(payment.paid_at)
-
-    if (!isDateInsideDashboardRange(paidAt, dateRange)) {
+    if (!isPaymentInsideDashboardRange(payment, dateRange)) {
       return sum
     }
 
@@ -953,6 +947,32 @@ function buildDashboardFinanceSummary({
     totalExpenses,
     gross: revenue - totalExpenses,
   }
+}
+
+function isPaymentInsideDashboardRange(payment: Payment, range: DashboardDateRange) {
+  if (!range.from && !range.to) {
+    return true
+  }
+
+  const paymentMonthDate = new Date(payment.year, payment.month - 1, 1)
+
+  if (range.from) {
+    const fromMonthDate = new Date(range.from.getFullYear(), range.from.getMonth(), 1)
+
+    if (paymentMonthDate < fromMonthDate) {
+      return false
+    }
+  }
+
+  if (range.to) {
+    const toMonthDate = new Date(range.to.getFullYear(), range.to.getMonth(), 1)
+
+    if (paymentMonthDate > toMonthDate) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function resolveDashboardDateRange(
