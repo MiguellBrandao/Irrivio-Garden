@@ -106,6 +106,10 @@ export function CalendarPage() {
     () => Object.fromEntries((teamsQuery.data ?? []).map((team) => [team.id, team.name])),
     [teamsQuery.data]
   )
+  const gardenNameById = useMemo(
+    () => Object.fromEntries((gardensQuery.data ?? []).map((garden) => [garden.id, garden.client_name])),
+    [gardensQuery.data]
+  )
   const monthDays = useMemo(() => getMonthDays(desktopMonthDate), [desktopMonthDate])
   const mobileDayEntries = entriesByDate[toIsoDate(mobileDayDate)] ?? []
 
@@ -203,11 +207,11 @@ export function CalendarPage() {
 
         <CardContent className="space-y-4">
           <div className="hidden md:block">
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-7 gap-1 md:gap-1 lg:gap-1.5 xl:gap-3">
               {["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((label) => (
                 <div
                   key={label}
-                  className="rounded-xl px-3 pb-1 text-center text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground"
+                  className="rounded-xl px-0.5 pb-0.5 text-center text-[9px] font-medium uppercase tracking-[0.06em] text-muted-foreground md:px-1 md:text-[9px] lg:px-1.5 lg:text-[10px] lg:tracking-[0.1em] xl:px-3 xl:pb-1 xl:text-xs xl:tracking-[0.18em]"
                 >
                   {label}
                 </div>
@@ -220,7 +224,7 @@ export function CalendarPage() {
                   <div
                     key={dayKey}
                     className={cn(
-                      "flex h-52 flex-col overflow-hidden rounded-3xl border p-3 text-left shadow-sm transition",
+                      "flex h-36 flex-col overflow-hidden rounded-[1rem] border p-1.5 text-left shadow-sm transition md:h-38 md:rounded-[1.1rem] md:p-1.5 lg:h-42 lg:rounded-[1.2rem] lg:p-2 xl:h-52 xl:rounded-3xl xl:p-3",
                       isCurrentMonth
                         ? "border-[#dfd7c0] bg-white hover:border-[#215442]/40 hover:shadow-md"
                         : "border-[#ebe5d6] bg-[#f6f2e8] text-muted-foreground opacity-65"
@@ -228,15 +232,15 @@ export function CalendarPage() {
                   >
                     <div
                       className={cn(
-                        "flex items-center justify-between gap-3",
-                        dayEntries.length > 0 && "mb-3"
+                        "flex items-center justify-between gap-1.5 md:gap-2 lg:gap-2.5",
+                        dayEntries.length > 0 && "mb-1.5 md:mb-2 lg:mb-2.5 xl:mb-3"
                       )}
                     >
                       <div className="flex items-center gap-2">
                         {isCurrentMonth && isToday(day) ? <Badge>Hoje</Badge> : null}
                         <span
                           className={cn(
-                            "text-lg font-semibold",
+                            "text-sm font-semibold md:text-[15px] lg:text-base xl:text-lg",
                             isCurrentMonth ? "text-[#1f2f27]" : "text-[#7f7a6d]"
                           )}
                         >
@@ -260,18 +264,19 @@ export function CalendarPage() {
                       )}
                     >
                       {dayEntries.length ? (
-                        <div className="floripa-scrollbar h-full space-y-2 overflow-y-auto pr-1">
+                        <div className="floripa-scrollbar h-full space-y-1 overflow-y-auto pr-0 md:space-y-1.5 md:pr-0.5 lg:space-y-2 lg:pr-1">
                           {dayEntries.map((entry) => (
                             <CalendarEntryCard
                               key={entry.id}
                               entry={entry}
                               isCurrentMonth={isCurrentMonth}
                               teamName={entry.kind === "automatic-garden" ? null : teamNameById[entry.team_id ?? ""] ?? "Sem equipa"}
+                              gardenName={entry.kind === "automatic-garden" ? entry.garden_name : gardenNameById[entry.garden_id] ?? null}
                             />
                           ))}
                         </div>
                       ) : (
-                        <div className="flex flex-1 items-center justify-center px-3 py-5 text-center text-sm text-muted-foreground">
+                        <div className="flex flex-1 items-center justify-center px-0.5 py-2 text-center text-[10px] leading-4 text-muted-foreground md:px-1 md:py-2.5 md:text-[11px] md:leading-4 lg:px-2 lg:py-4 lg:text-xs lg:leading-5 xl:px-3 xl:py-5 xl:text-sm">
                           {isAdmin ? "Usa o botao + para criar uma tarefa." : "Sem tarefas."}
                         </div>
                       )}
@@ -325,6 +330,7 @@ export function CalendarPage() {
                         isCurrentMonth
                         compact
                         teamName={entry.kind === "automatic-garden" ? null : teamNameById[entry.team_id ?? ""] ?? "Sem equipa"}
+                        gardenName={entry.kind === "automatic-garden" ? entry.garden_name : gardenNameById[entry.garden_id] ?? null}
                       />
                     ))}
                   </div>
@@ -346,6 +352,7 @@ type CalendarEntryCardProps = {
   entry: CalendarEntry
   isCurrentMonth: boolean
   teamName: string | null
+  gardenName: string | null
   compact?: boolean
 }
 
@@ -353,33 +360,36 @@ function CalendarEntryCard({
   entry,
   isCurrentMonth,
   teamName,
+  gardenName,
   compact = false,
 }: CalendarEntryCardProps) {
   const isAutomatic = entry.kind === "automatic-garden"
   const href = isAutomatic ? `/gardens/${entry.garden_id}` : `/calendar/tasks/${entry.id}`
   const title = isAutomatic ? entry.garden_name : teamName ?? "Sem equipa"
-  const categoryLabel = isAutomatic ? "Manutencao" : taskTypeLabels[entry.task_type]
+  const categoryLabel = isAutomatic
+    ? "Servico regular"
+    : gardenName ?? taskTypeLabels[entry.task_type]
 
   return (
     <Link
       href={href}
       className={cn(
-        "flex w-full flex-col rounded-2xl border px-3 py-2 text-left transition",
+        "flex w-full flex-col rounded-lg border px-1.5 py-1 text-left transition md:rounded-xl md:px-2 md:py-1.5 lg:rounded-2xl lg:px-2.5 lg:py-2 xl:px-3",
         compact
           ? "border-[#e8e1cf] bg-[#f7f2e7]"
           : isCurrentMonth
             ? "border-[#e8e1cf] bg-[#f7f2e7] hover:border-[#215442]/40"
             : "border-[#e7e0d0] bg-[#f1ebde]"
       )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+      >
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-[8px] font-medium uppercase tracking-[0.02em] text-muted-foreground md:text-[9px] md:tracking-[0.04em] lg:text-[10px] lg:tracking-[0.08em] xl:text-xs xl:tracking-[0.14em]">
           {categoryLabel}
         </span>
         {isAutomatic ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex size-5 items-center justify-center rounded-full text-[#215442]/60">
+              <span className="ml-1 inline-flex shrink-0 size-5 items-center justify-center rounded-full text-[#215442]/60">
                 <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} className="size-3.5" />
                 <span className="sr-only">Evento automatico</span>
               </span>
@@ -393,13 +403,13 @@ function CalendarEntryCard({
 
       <span
         className={cn(
-          "truncate text-sm font-medium",
+          "truncate text-[11px] font-medium md:text-xs lg:text-sm",
           isCurrentMonth ? "text-[#1f2f27]" : "text-[#6f6a5d]"
         )}
       >
         {title}
       </span>
-      <span className="truncate text-xs text-muted-foreground">
+      <span className="truncate text-[10px] text-muted-foreground md:text-[11px] lg:text-xs">
         {formatTaskTimeRange(entry)}
       </span>
     </Link>

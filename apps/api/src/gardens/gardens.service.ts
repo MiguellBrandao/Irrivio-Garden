@@ -33,6 +33,16 @@ type GardenScheduleValues = {
   maintenanceEndTime: string | null;
 };
 
+const WEEKDAY_BY_JS_DAY: GardenDayOfWeek[] = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
 @Injectable()
 export class GardensService {
   constructor(private readonly companiesService: CompaniesService) {}
@@ -479,17 +489,6 @@ export class GardensService {
       );
     }
 
-    const maintenanceDayOfWeek =
-      dto.maintenance_day_of_week ??
-      ((current?.maintenance_day_of_week as GardenDayOfWeek | null | undefined) ??
-        null);
-
-    if (!maintenanceDayOfWeek) {
-      throw new BadRequestException(
-        'maintenance_day_of_week is required when is_regular_service is true',
-      );
-    }
-
     let maintenanceAnchorDate =
       dto.maintenance_anchor_date ?? current?.maintenance_anchor_date ?? null;
 
@@ -498,6 +497,19 @@ export class GardensService {
     } else if (!maintenanceAnchorDate) {
       throw new BadRequestException(
         'maintenance_anchor_date is required for biweekly and monthly schedules',
+      );
+    }
+
+    const maintenanceDayOfWeek =
+      maintenanceFrequency === 'weekly'
+        ? (dto.maintenance_day_of_week ??
+          ((current?.maintenance_day_of_week as GardenDayOfWeek | null | undefined) ??
+            null))
+        : this.getWeekdayFromIsoDate(maintenanceAnchorDate);
+
+    if (!maintenanceDayOfWeek) {
+      throw new BadRequestException(
+        'maintenance_day_of_week is required when is_regular_service is true',
       );
     }
 
@@ -525,5 +537,16 @@ export class GardensService {
       maintenanceStartTime,
       maintenanceEndTime,
     };
+  }
+
+  private getWeekdayFromIsoDate(value: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    return WEEKDAY_BY_JS_DAY[date.getDay()] ?? null;
   }
 }

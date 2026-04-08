@@ -42,6 +42,10 @@ export const expenseCategoryLabels: Record<GardenExpenseCategory, string> = {
 
 export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {
   const isRegularService = values.is_regular_service
+  const derivedWeekday =
+    values.maintenance_frequency === "weekly"
+      ? values.maintenance_day_of_week
+      : getWeekdayFromIsoDate(values.maintenance_anchor_date)
 
   return {
     client_name: values.client_name.trim(),
@@ -54,7 +58,7 @@ export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {
     is_regular_service: isRegularService,
     show_in_calendar: isRegularService ? values.show_in_calendar : false,
     maintenance_frequency: isRegularService ? values.maintenance_frequency : null,
-    maintenance_day_of_week: isRegularService ? values.maintenance_day_of_week : null,
+    maintenance_day_of_week: isRegularService ? derivedWeekday : null,
     maintenance_anchor_date:
       isRegularService && values.maintenance_frequency !== "weekly"
         ? values.maintenance_anchor_date.trim() || null
@@ -72,6 +76,17 @@ export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {
 }
 
 export function toGardenFormValues(garden: Garden): GardenFormValues {
+  const derivedWeekday =
+    garden.maintenance_frequency && garden.maintenance_frequency !== "weekly"
+      ? getWeekdayFromIsoDate(garden.maintenance_anchor_date)
+      : null
+  const maintenanceFrequency =
+    garden.maintenance_frequency === "weekly" ||
+    garden.maintenance_frequency === "biweekly" ||
+    garden.maintenance_frequency === "monthly"
+      ? garden.maintenance_frequency
+      : "weekly"
+
   return {
     client_name: garden.client_name,
     address: garden.address,
@@ -79,8 +94,9 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
     monthly_price: garden.monthly_price ?? "",
     is_regular_service: garden.is_regular_service ?? true,
     show_in_calendar: garden.show_in_calendar ?? true,
-    maintenance_frequency: garden.maintenance_frequency ?? "weekly",
-    maintenance_day_of_week: garden.maintenance_day_of_week ?? "monday",
+    maintenance_frequency: maintenanceFrequency,
+    maintenance_day_of_week:
+      derivedWeekday ?? garden.maintenance_day_of_week ?? "monday",
     maintenance_anchor_date: garden.maintenance_anchor_date ?? "",
     maintenance_start_time: normalizeTimeInput(garden.maintenance_start_time) ?? "",
     maintenance_end_time: normalizeTimeInput(garden.maintenance_end_time) ?? "",
@@ -97,6 +113,24 @@ export function normalizeTimeInput(value: string | null | undefined) {
   }
 
   return value.slice(0, 5)
+}
+
+export function getWeekdayFromIsoDate(value: string | null | undefined): GardenWeekday | null {
+  if (!value) {
+    return null
+  }
+
+  const [year, month, day] = value.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  const weekDay = date.getDay()
+
+  if (weekDay === 0) {
+    return "sunday"
+  }
+
+  return ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][
+    weekDay - 1
+  ] as GardenWeekday
 }
 
 export function formatCurrency(value: number) {

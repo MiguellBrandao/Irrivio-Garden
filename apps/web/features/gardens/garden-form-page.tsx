@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -44,6 +44,7 @@ import {
 } from "@/features/gardens/schema"
 import {
   frequencyLabels,
+  getWeekdayFromIsoDate,
   toGardenFormValues,
   toGardenPayload,
   weekdayLabels,
@@ -78,6 +79,11 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
     control: form.control,
     name: "maintenance_frequency",
   })
+  const maintenanceAnchorDate = useWatch({
+    control: form.control,
+    name: "maintenance_anchor_date",
+  })
+  const previousMaintenanceFrequencyRef = useRef(maintenanceFrequency)
 
   const gardenQuery = useQuery({
     queryKey: ["gardens", "detail", gardenId, activeCompanyId, accessToken],
@@ -105,13 +111,38 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
   }, [form, isRegularService])
 
   useEffect(() => {
-    if (maintenanceFrequency === "weekly" && form.getValues("maintenance_anchor_date")) {
+    const previousMaintenanceFrequency = previousMaintenanceFrequencyRef.current
+
+    if (
+      previousMaintenanceFrequency &&
+      previousMaintenanceFrequency !== "weekly" &&
+      maintenanceFrequency === "weekly" &&
+      form.getValues("maintenance_anchor_date")
+    ) {
       form.setValue("maintenance_anchor_date", "", {
         shouldDirty: true,
         shouldValidate: true,
       })
     }
+
+    previousMaintenanceFrequencyRef.current = maintenanceFrequency
   }, [form, maintenanceFrequency])
+
+  useEffect(() => {
+    if (maintenanceFrequency === "weekly") {
+      return
+    }
+
+    const derivedWeekday = getWeekdayFromIsoDate(maintenanceAnchorDate)
+    if (!derivedWeekday) {
+      return
+    }
+
+    form.setValue("maintenance_day_of_week", derivedWeekday, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [form, maintenanceAnchorDate, maintenanceFrequency])
 
   const saveMutation = useMutation({
     mutationFn: async (values: GardenFormValues) => {
@@ -459,7 +490,11 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                         render={({ field, fieldState }) => (
                           <Field data-invalid={fieldState.invalid}>
                             <FieldLabel>Frequencia</FieldLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                            <Select
+                              key={`maintenance-frequency-${field.value || "weekly"}`}
+                              value={field.value || "weekly"}
+                              onValueChange={field.onChange}
+                            >
                               <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                                 <SelectValue />
                               </SelectTrigger>
@@ -473,36 +508,52 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                               {maintenanceFrequency === "weekly"
                                 ? "Repete todas as semanas no mesmo dia."
                                 : maintenanceFrequency === "biweekly"
-                                  ? "Repete de duas em duas semanas no mesmo dia da semana."
-                                  : "Repete na mesma semana do mes e no mesmo dia da semana."}
+                                  ? "Repete de duas em duas semanas a partir da data base."
+                                  : maintenanceFrequency === "monthly"
+                                    ? "Repete na mesma semana do mes e no mesmo dia da semana da data base."
+                                    : "Escolhe a frequencia da rotina."}
                             </FieldDescription>
                             <FieldError errors={[fieldState.error]} />
                           </Field>
                         )}
                       />
 
-                      <Controller
-                        control={form.control}
-                        name="maintenance_day_of_week"
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel>Dia da semana</FieldLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.entries(weekdayLabels).map(([value, label]) => (
-                                  <SelectItem key={value} value={value}>
-                                    {label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
+                      {maintenanceFrequency === "weekly" ? (
+                        <Controller
+                          control={form.control}
+                          name="maintenance_day_of_week"
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel>Dia da semana</FieldLabel>
+                              <Select value={field.value || "monday"} onValueChange={field.onChange}>
+                                <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(weekdayLabels).map(([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                      ) : (
+                        <Field>
+                          <FieldLabel>Dia da semana</FieldLabel>
+                          <div className="flex min-h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-sm text-foreground">
+                            {maintenanceAnchorDate
+                              ? weekdayLabels[getWeekdayFromIsoDate(maintenanceAnchorDate) ?? "monday"]
+                              : "Escolhe primeiro a data base"}
+                          </div>
+                          <FieldDescription>
+                            O dia da semana e calculado automaticamente a partir da data base.
+                          </FieldDescription>
+                        </Field>
+                      )}
                     </div>
 
                     {maintenanceFrequency !== "weekly" ? (
@@ -516,6 +567,7 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                             </FieldLabel>
                             <Input
                               {...field}
+                              value={field.value || ""}
                               id="garden-maintenance-anchor-date"
                               type="date"
                               aria-invalid={fieldState.invalid}

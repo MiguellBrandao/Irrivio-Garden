@@ -72,7 +72,7 @@ export const gardenFormSchema = z
       return
     }
 
-    if (!values.maintenance_day_of_week) {
+    if (values.maintenance_frequency === "weekly" && !values.maintenance_day_of_week) {
       ctx.addIssue({
         code: "custom",
         path: ["maintenance_day_of_week"],
