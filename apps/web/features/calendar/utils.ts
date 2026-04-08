@@ -1,10 +1,13 @@
 import {
   addDays,
   addMonths,
+  differenceInCalendarDays,
+  endOfWeek,
   endOfMonth,
   format,
-  getDaysInMonth,
+  isSameMonth,
   isSameDay,
+  startOfWeek,
   startOfMonth,
 } from "date-fns"
 import { pt } from "date-fns/locale"
@@ -57,10 +60,20 @@ export function getMonthRange(date: Date) {
 }
 
 export function getMonthDays(date: Date) {
-  const firstDay = startOfMonth(date)
-  const totalDays = getDaysInMonth(date)
+  const monthStart = startOfMonth(date)
+  const monthEnd = endOfMonth(date)
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+  const totalDays = differenceInCalendarDays(gridEnd, gridStart) + 1
 
-  return Array.from({ length: totalDays }, (_, index) => addDays(firstDay, index))
+  return Array.from({ length: totalDays }, (_, index) => {
+    const day = addDays(gridStart, index)
+
+    return {
+      date: day,
+      isCurrentMonth: isSameMonth(day, date),
+    }
+  })
 }
 
 export function getTasksByDate(tasks: Task[]) {

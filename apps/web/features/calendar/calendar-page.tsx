@@ -183,7 +183,7 @@ export function CalendarPage() {
                   {label}
                 </div>
               ))}
-              {monthDays.map((day) => {
+              {monthDays.map(({ date: day, isCurrentMonth }) => {
                 const dayKey = toIsoDate(day)
                 const dayTasks = tasksByDate[dayKey] ?? []
 
@@ -191,7 +191,10 @@ export function CalendarPage() {
                   <div
                     key={dayKey}
                     className={cn(
-                      "flex h-52 flex-col overflow-hidden rounded-3xl border border-[#dfd7c0] bg-white p-3 text-left shadow-sm transition hover:border-[#215442]/40 hover:shadow-md"
+                      "flex h-52 flex-col overflow-hidden rounded-3xl border p-3 text-left shadow-sm transition",
+                      isCurrentMonth
+                        ? "border-[#dfd7c0] bg-white hover:border-[#215442]/40 hover:shadow-md"
+                        : "border-[#ebe5d6] bg-[#f6f2e8] text-muted-foreground opacity-65"
                     )}
                   >
                     <div
@@ -201,8 +204,13 @@ export function CalendarPage() {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        {isToday(day) ? <Badge>Hoje</Badge> : null}
-                        <span className="text-lg font-semibold text-[#1f2f27]">
+                        {isCurrentMonth && isToday(day) ? <Badge>Hoje</Badge> : null}
+                        <span
+                          className={cn(
+                            "text-lg font-semibold",
+                            isCurrentMonth ? "text-[#1f2f27]" : "text-[#7f7a6d]"
+                          )}
+                        >
                           {format(day, "d")}
                         </span>
                       </div>
@@ -228,12 +236,22 @@ export function CalendarPage() {
                             <Link
                               key={task.id}
                               href={`/calendar/tasks/${task.id}`}
-                              className="flex w-full flex-col rounded-2xl border border-[#e8e1cf] bg-[#f7f2e7] px-3 py-2 text-left transition hover:border-[#215442]/40"
+                              className={cn(
+                                "flex w-full flex-col rounded-2xl border px-3 py-2 text-left transition",
+                                isCurrentMonth
+                                  ? "border-[#e8e1cf] bg-[#f7f2e7] hover:border-[#215442]/40"
+                                  : "border-[#e7e0d0] bg-[#f1ebde]"
+                              )}
                             >
                               <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                                 {taskTypeLabels[task.task_type]}
                               </span>
-                              <span className="truncate text-sm font-medium text-[#1f2f27]">
+                              <span
+                                className={cn(
+                                  "truncate text-sm font-medium",
+                                  isCurrentMonth ? "text-[#1f2f27]" : "text-[#6f6a5d]"
+                                )}
+                              >
                                 {teamNameById[task.team_id ?? ""] ?? "Sem equipa"}
                               </span>
                               <span className="truncate text-xs text-muted-foreground">
