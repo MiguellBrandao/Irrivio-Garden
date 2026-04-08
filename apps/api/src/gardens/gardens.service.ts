@@ -14,6 +14,25 @@ type Requester = {
   id: string;
 };
 
+type GardenDayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+type GardenScheduleValues = {
+  isRegularService: boolean;
+  showInCalendar: boolean;
+  maintenanceFrequency: 'weekly' | 'biweekly' | 'monthly' | null;
+  maintenanceDayOfWeek: GardenDayOfWeek | null;
+  maintenanceAnchorDate: string | null;
+  maintenanceStartTime: string | null;
+  maintenanceEndTime: string | null;
+};
+
 @Injectable()
 export class GardensService {
   constructor(private readonly companiesService: CompaniesService) {}
@@ -105,6 +124,7 @@ export class GardensService {
 
   async create(dto: CreateGardenDto, requester: Requester) {
     await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
+    const schedule = this.normalizeSchedule(dto);
 
     const rows = await db
       .insert(gardens)
@@ -114,7 +134,13 @@ export class GardensService {
         address: dto.address,
         phone: dto.phone,
         monthlyPrice: dto.monthly_price?.toString(),
-        maintenanceFrequency: dto.maintenance_frequency,
+        isRegularService: schedule.isRegularService,
+        showInCalendar: schedule.showInCalendar,
+        maintenanceFrequency: schedule.maintenanceFrequency,
+        maintenanceDayOfWeek: schedule.maintenanceDayOfWeek,
+        maintenanceAnchorDate: schedule.maintenanceAnchorDate,
+        maintenanceStartTime: schedule.maintenanceStartTime,
+        maintenanceEndTime: schedule.maintenanceEndTime,
         startDate: dto.start_date,
         billingDay: dto.billing_day,
         status: dto.status ?? 'active',
@@ -127,7 +153,13 @@ export class GardensService {
         address: gardens.address,
         phone: gardens.phone,
         monthly_price: gardens.monthlyPrice,
+        is_regular_service: gardens.isRegularService,
+        show_in_calendar: gardens.showInCalendar,
         maintenance_frequency: gardens.maintenanceFrequency,
+        maintenance_day_of_week: gardens.maintenanceDayOfWeek,
+        maintenance_anchor_date: gardens.maintenanceAnchorDate,
+        maintenance_start_time: gardens.maintenanceStartTime,
+        maintenance_end_time: gardens.maintenanceEndTime,
         start_date: gardens.startDate,
         billing_day: gardens.billingDay,
         status: gardens.status,
@@ -154,17 +186,26 @@ export class GardensService {
       requester.id,
       current.company_id,
     );
+    const schedule = this.hasScheduleChanges(dto)
+      ? this.normalizeSchedule(dto, current)
+      : null;
 
     const setPayload: {
       clientName?: string;
       address?: string;
       phone?: string;
       monthlyPrice?: string;
-      maintenanceFrequency?: 'weekly' | 'biweekly' | 'monthly';
-      startDate?: string;
-      billingDay?: number;
+      isRegularService?: boolean;
+      showInCalendar?: boolean;
+      maintenanceFrequency?: 'weekly' | 'biweekly' | 'monthly' | null;
+      maintenanceDayOfWeek?: GardenDayOfWeek | null;
+      maintenanceAnchorDate?: string | null;
+      maintenanceStartTime?: string | null;
+      maintenanceEndTime?: string | null;
+      startDate?: string | null;
+      billingDay?: number | null;
       status?: 'active' | 'paused' | 'cancelled';
-      notes?: string;
+      notes?: string | null;
     } = {};
 
     const responsePayload: Record<string, unknown> = {
@@ -188,9 +229,21 @@ export class GardensService {
       setPayload.monthlyPrice = dto.monthly_price.toString();
       responsePayload.monthly_price = dto.monthly_price;
     }
-    if (dto.maintenance_frequency !== undefined) {
-      setPayload.maintenanceFrequency = dto.maintenance_frequency;
-      responsePayload.maintenance_frequency = dto.maintenance_frequency;
+    if (this.hasScheduleChanges(dto)) {
+      setPayload.isRegularService = schedule!.isRegularService;
+      setPayload.showInCalendar = schedule!.showInCalendar;
+      setPayload.maintenanceFrequency = schedule!.maintenanceFrequency;
+      setPayload.maintenanceDayOfWeek = schedule!.maintenanceDayOfWeek;
+      setPayload.maintenanceAnchorDate = schedule!.maintenanceAnchorDate;
+      setPayload.maintenanceStartTime = schedule!.maintenanceStartTime;
+      setPayload.maintenanceEndTime = schedule!.maintenanceEndTime;
+      responsePayload.is_regular_service = schedule!.isRegularService;
+      responsePayload.show_in_calendar = schedule!.showInCalendar;
+      responsePayload.maintenance_frequency = schedule!.maintenanceFrequency;
+      responsePayload.maintenance_day_of_week = schedule!.maintenanceDayOfWeek;
+      responsePayload.maintenance_anchor_date = schedule!.maintenanceAnchorDate;
+      responsePayload.maintenance_start_time = schedule!.maintenanceStartTime;
+      responsePayload.maintenance_end_time = schedule!.maintenanceEndTime;
     }
     if (dto.start_date !== undefined) {
       setPayload.startDate = dto.start_date;
@@ -262,7 +315,13 @@ export class GardensService {
         address: gardens.address,
         phone: gardens.phone,
         monthly_price: gardens.monthlyPrice,
+        is_regular_service: gardens.isRegularService,
+        show_in_calendar: gardens.showInCalendar,
         maintenance_frequency: gardens.maintenanceFrequency,
+        maintenance_day_of_week: gardens.maintenanceDayOfWeek,
+        maintenance_anchor_date: gardens.maintenanceAnchorDate,
+        maintenance_start_time: gardens.maintenanceStartTime,
+        maintenance_end_time: gardens.maintenanceEndTime,
         start_date: gardens.startDate,
         billing_day: gardens.billingDay,
         status: gardens.status,
@@ -283,7 +342,13 @@ export class GardensService {
         address: gardens.address,
         phone: gardens.phone,
         monthly_price: gardens.monthlyPrice,
+        is_regular_service: gardens.isRegularService,
+        show_in_calendar: gardens.showInCalendar,
         maintenance_frequency: gardens.maintenanceFrequency,
+        maintenance_day_of_week: gardens.maintenanceDayOfWeek,
+        maintenance_anchor_date: gardens.maintenanceAnchorDate,
+        maintenance_start_time: gardens.maintenanceStartTime,
+        maintenance_end_time: gardens.maintenanceEndTime,
         start_date: gardens.startDate,
         billing_day: gardens.billingDay,
         status: gardens.status,
@@ -304,7 +369,13 @@ export class GardensService {
     address: string;
     phone: string | null;
     monthly_price: string | null;
+    is_regular_service: boolean;
+    show_in_calendar: boolean;
     maintenance_frequency: string | null;
+    maintenance_day_of_week: string | null;
+    maintenance_anchor_date: string | null;
+    maintenance_start_time: string | null;
+    maintenance_end_time: string | null;
     start_date: string | null;
     billing_day: number | null;
     status: string;
@@ -350,5 +421,109 @@ export class GardensService {
           .filter((gardenId): gardenId is string => Boolean(gardenId)),
       ),
     ];
+  }
+
+  private hasScheduleChanges(dto: UpdateGardenDto) {
+    return (
+      dto.is_regular_service !== undefined ||
+      dto.show_in_calendar !== undefined ||
+      dto.maintenance_frequency !== undefined ||
+      dto.maintenance_day_of_week !== undefined ||
+      dto.maintenance_anchor_date !== undefined ||
+      dto.maintenance_start_time !== undefined ||
+      dto.maintenance_end_time !== undefined
+    );
+  }
+
+  private normalizeSchedule(
+    dto: CreateGardenDto | UpdateGardenDto,
+    current?: {
+      is_regular_service: boolean;
+      show_in_calendar: boolean;
+      maintenance_frequency: string | null;
+      maintenance_day_of_week: string | null;
+      maintenance_anchor_date: string | null;
+      maintenance_start_time: string | null;
+      maintenance_end_time: string | null;
+    },
+  ): GardenScheduleValues {
+    const isRegularService =
+      dto.is_regular_service ?? current?.is_regular_service ?? true;
+    const showInCalendar = dto.show_in_calendar ?? current?.show_in_calendar ?? true;
+
+    if (!isRegularService) {
+      return {
+        isRegularService: false,
+        showInCalendar,
+        maintenanceFrequency: null,
+        maintenanceDayOfWeek: null,
+        maintenanceAnchorDate: null,
+        maintenanceStartTime: null,
+        maintenanceEndTime: null,
+      };
+    }
+
+    const maintenanceFrequency =
+      dto.maintenance_frequency ??
+      ((current?.maintenance_frequency as
+        | 'weekly'
+        | 'biweekly'
+        | 'monthly'
+        | null
+        | undefined) ??
+        null);
+
+    if (!maintenanceFrequency) {
+      throw new BadRequestException(
+        'maintenance_frequency is required when is_regular_service is true',
+      );
+    }
+
+    const maintenanceDayOfWeek =
+      dto.maintenance_day_of_week ??
+      ((current?.maintenance_day_of_week as GardenDayOfWeek | null | undefined) ??
+        null);
+
+    if (!maintenanceDayOfWeek) {
+      throw new BadRequestException(
+        'maintenance_day_of_week is required when is_regular_service is true',
+      );
+    }
+
+    let maintenanceAnchorDate =
+      dto.maintenance_anchor_date ?? current?.maintenance_anchor_date ?? null;
+
+    if (maintenanceFrequency === 'weekly') {
+      maintenanceAnchorDate = null;
+    } else if (!maintenanceAnchorDate) {
+      throw new BadRequestException(
+        'maintenance_anchor_date is required for biweekly and monthly schedules',
+      );
+    }
+
+    const maintenanceStartTime =
+      dto.maintenance_start_time ?? current?.maintenance_start_time ?? null;
+    const maintenanceEndTime =
+      dto.maintenance_end_time ?? current?.maintenance_end_time ?? null;
+
+    if (
+      maintenanceStartTime &&
+      maintenanceEndTime &&
+      maintenanceEndTime < maintenanceStartTime
+    ) {
+      throw new BadRequestException(
+        'maintenance_end_time must be after maintenance_start_time',
+      );
+    }
+
+    return {
+      isRegularService: true,
+      showInCalendar,
+      maintenanceFrequency,
+      maintenanceDayOfWeek,
+      maintenanceAnchorDate,
+      maintenanceStartTime,
+      maintenanceEndTime,
+    };
   }
 }

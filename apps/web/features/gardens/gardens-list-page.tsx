@@ -496,7 +496,13 @@ const GARDEN_CSV_HEADERS = [
   "address",
   "phone",
   "monthly_price",
+  "is_regular_service",
+  "show_in_calendar",
   "maintenance_frequency",
+  "maintenance_day_of_week",
+  "maintenance_anchor_date",
+  "maintenance_start_time",
+  "maintenance_end_time",
   "start_date",
   "billing_day",
   "status",
@@ -513,7 +519,13 @@ function buildGardensCsv(gardens: Garden[]) {
       garden.address,
       garden.phone ?? "",
       garden.monthly_price ?? "",
+      garden.is_regular_service,
+      garden.show_in_calendar,
       garden.maintenance_frequency ?? "",
+      garden.maintenance_day_of_week ?? "",
+      garden.maintenance_anchor_date ?? "",
+      garden.maintenance_start_time ?? "",
+      garden.maintenance_end_time ?? "",
       garden.start_date ?? "",
       garden.billing_day ?? "",
       garden.status,
@@ -527,7 +539,7 @@ function buildGardensCsv(gardens: Garden[]) {
   return [header, ...rows].join("\n")
 }
 
-function escapeCsvValue(value: string | number) {
+function escapeCsvValue(value: string | number | boolean) {
   const normalized = String(value)
   const escaped = normalized.replaceAll('"', '""')
 
@@ -576,6 +588,32 @@ function mapCsvRowToGardenPayload(
     throw new Error(`A linha ${rowNumber} do CSV tem monthly_price invalido.`)
   }
 
+  const isRegularService =
+    data.is_regular_service === ""
+      ? true
+      : data.is_regular_service === "true"
+        ? true
+        : data.is_regular_service === "false"
+          ? false
+          : null
+
+  if (isRegularService === null) {
+    throw new Error(`A linha ${rowNumber} do CSV tem is_regular_service invalido.`)
+  }
+
+  const showInCalendar =
+    data.show_in_calendar === ""
+      ? true
+      : data.show_in_calendar === "true"
+        ? true
+        : data.show_in_calendar === "false"
+          ? false
+          : null
+
+  if (showInCalendar === null) {
+    throw new Error(`A linha ${rowNumber} do CSV tem show_in_calendar invalido.`)
+  }
+
   const billingDay = data.billing_day ? Number(data.billing_day) : undefined
   if (data.billing_day) {
     if (
@@ -603,13 +641,34 @@ function mapCsvRowToGardenPayload(
     throw new Error(`A linha ${rowNumber} do CSV tem status invalido.`)
   }
 
+  const maintenanceDayOfWeek = data.maintenance_day_of_week
+  if (
+    maintenanceDayOfWeek &&
+    maintenanceDayOfWeek !== "monday" &&
+    maintenanceDayOfWeek !== "tuesday" &&
+    maintenanceDayOfWeek !== "wednesday" &&
+    maintenanceDayOfWeek !== "thursday" &&
+    maintenanceDayOfWeek !== "friday" &&
+    maintenanceDayOfWeek !== "saturday" &&
+    maintenanceDayOfWeek !== "sunday"
+  ) {
+    throw new Error(`A linha ${rowNumber} do CSV tem maintenance_day_of_week invalido.`)
+  }
+
   return {
     client_name: clientName,
     address,
     phone: data.phone || undefined,
     monthly_price: monthlyPrice,
+    is_regular_service: isRegularService,
+    show_in_calendar: showInCalendar,
     maintenance_frequency:
-      (maintenanceFrequency as Garden["maintenance_frequency"] | "") || undefined,
+      (maintenanceFrequency as Garden["maintenance_frequency"] | "") || null,
+    maintenance_day_of_week:
+      (maintenanceDayOfWeek as Garden["maintenance_day_of_week"] | "") || null,
+    maintenance_anchor_date: data.maintenance_anchor_date || null,
+    maintenance_start_time: data.maintenance_start_time || null,
+    maintenance_end_time: data.maintenance_end_time || null,
     start_date: data.start_date || undefined,
     billing_day: billingDay,
     status: status as GardenStatus,

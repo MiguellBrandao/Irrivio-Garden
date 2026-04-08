@@ -5,14 +5,16 @@ import {
   endOfWeek,
   endOfMonth,
   format,
-  isSameMonth,
+  getISODay,
   isSameDay,
+  isSameMonth,
   startOfWeek,
   startOfMonth,
 } from "date-fns"
 import { pt } from "date-fns/locale"
 
-import type { Task, TaskType } from "@/features/calendar/types"
+import type { CalendarEntry, Task, TaskType } from "@/features/calendar/types"
+import type { Garden, GardenWeekday } from "@/features/gardens/types"
 
 export const taskTypeLabels: Record<TaskType, string> = {
   maintenance: "Manutencao",
@@ -21,6 +23,16 @@ export const taskTypeLabels: Record<TaskType, string> = {
   installation: "Instalacao",
   inspection: "Inspecao",
   emergency: "Emergencia",
+}
+
+const weekdayIndexMap: Record<GardenWeekday, number> = {
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+  sunday: 7,
 }
 
 export function parseIsoDate(value: string) {
@@ -59,6 +71,13 @@ export function getMonthRange(date: Date) {
   }
 }
 
+export function getVisibleMonthRange(date: Date) {
+  return {
+    from: toIsoDate(startOfWeek(startOfMonth(date), { weekStartsOn: 1 })),
+    to: toIsoDate(endOfWeek(endOfMonth(date), { weekStartsOn: 1 })),
+  }
+}
+
 export function getMonthDays(date: Date) {
   const monthStart = startOfMonth(date)
   const monthEnd = endOfMonth(date)
@@ -76,14 +95,14 @@ export function getMonthDays(date: Date) {
   })
 }
 
-export function getTasksByDate(tasks: Task[]) {
-  return tasks.reduce<Record<string, Task[]>>((accumulator, task) => {
-    if (!accumulator[task.date]) {
-      accumulator[task.date] = []
+export function getCalendarEntriesByDate(entries: CalendarEntry[]) {
+  return entries.reduce<Record<string, CalendarEntry[]>>((accumulator, entry) => {
+    if (!accumulator[entry.date]) {
+      accumulator[entry.date] = []
     }
 
-    accumulator[task.date].push(task)
-    accumulator[task.date].sort((left, right) => {
+    accumulator[entry.date].push(entry)
+    accumulator[entry.date].sort((left, right) => {
       const leftValue = left.start_time ?? "99:99:99"
       const rightValue = right.start_time ?? "99:99:99"
       return leftValue.localeCompare(rightValue)
@@ -93,9 +112,93 @@ export function getTasksByDate(tasks: Task[]) {
   }, {})
 }
 
-export function formatTaskTimeRange(task: Pick<Task, "start_time" | "end_time">) {
-  const startTime = normalizeTaskTime(task.start_time)
-  const endTime = normalizeTaskTime(task.end_time)
+export function buildAutomaticGardenEntries(
+  gardens: Garden[],
+  from: string,
+  to: string
+) {
+  const rangeStart = parseIsoDate(from)
+  const rangeEnd = parseIsoDate(to)
+  const entries: CalendarEntry[] = []
+
+  for (let current = rangeStart; current <= rangeEnd; current = addDays(current, 1)) {
+    for (const garden of gardens) {
+      if (!shouldIncludeGardenOnDate(garden, current)) {
+        continue
+      }
+
+      const date = toIsoDate(current)
+      const description =
+        garden.maintenance_frequency === "weekly"
+          ? "Gerada a partir da rotina semanal deste jardim."
+          : garden.maintenance_frequency === "biweekly"
+            ? "Gerada a partir da rotina quinzenal deste jardim."
+            : "Gerada a partir da rotina mensal deste jardim."
+
+      entries.push({
+        id: `garden-${garden.id}-${date}`,
+        kind: "automatic-garden",
+        garden_id: garden.id,
+        garden_name: garden.client_name,
+        date,
+        start_time: garden.maintenance_start_time ?? null,
+        end_time: garden.maintenance_end_time ?? null,
+        frequency: garden.maintenance_frequency!,
+        description,
+      })
+    }
+  }
+
+  return entries
+}
+
+function shouldIncludeGardenOnDate(garden: Garden, date: Date) {
+  if (
+    !garden.is_regular_service ||
+    !garden.show_in_calendar ||
+    garden.status !== "active" ||
+    !garden.maintenance_frequency ||
+    !garden.maintenance_day_of_week
+  ) {
+    return false
+  }
+
+  if (getISODay(date) !== weekdayIndexMap[garden.maintenance_day_of_week]) {
+    return false
+  }
+
+  const contractStartDate = garden.start_date ? parseIsoDate(garden.start_date) : null
+  if (contractStartDate && date < contractStartDate) {
+    return false
+  }
+
+  if (garden.maintenance_frequency === "weekly") {
+    return true
+  }
+
+  if (!garden.maintenance_anchor_date) {
+    return false
+  }
+
+  const anchorDate = parseIsoDate(garden.maintenance_anchor_date)
+  if (date < anchorDate) {
+    return false
+  }
+
+  if (garden.maintenance_frequency === "biweekly") {
+    return differenceInCalendarDays(date, anchorDate) % 14 === 0
+  }
+
+  return getWeekdayOccurrenceInMonth(date) === getWeekdayOccurrenceInMonth(anchorDate)
+}
+
+function getWeekdayOccurrenceInMonth(date: Date) {
+  return Math.floor((date.getDate() - 1) / 7) + 1
+}
+
+export function formatTaskTimeRange(entry: Pick<CalendarEntry, "start_time" | "end_time">) {
+  const startTime = normalizeTaskTime(entry.start_time)
+  const endTime = normalizeTaskTime(entry.end_time)
 
   if (startTime && endTime) {
     return `${startTime} - ${endTime}`

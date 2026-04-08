@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card"
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -41,8 +42,13 @@ import {
   gardenFormSchema,
   type GardenFormValues,
 } from "@/features/gardens/schema"
+import {
+  frequencyLabels,
+  toGardenFormValues,
+  toGardenPayload,
+  weekdayLabels,
+} from "@/features/gardens/utils"
 import { useAuthStore } from "@/lib/auth/store"
-import { toGardenFormValues, toGardenPayload } from "@/features/gardens/utils"
 
 type GardenFormPageProps = {
   mode: "create" | "edit"
@@ -64,6 +70,15 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
     defaultValues: gardenFormDefaults,
   })
 
+  const isRegularService = useWatch({
+    control: form.control,
+    name: "is_regular_service",
+  })
+  const maintenanceFrequency = useWatch({
+    control: form.control,
+    name: "maintenance_frequency",
+  })
+
   const gardenQuery = useQuery({
     queryKey: ["gardens", "detail", gardenId, activeCompanyId, accessToken],
     queryFn: () => getGardenById(accessToken ?? "", gardenId ?? ""),
@@ -75,6 +90,28 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
       form.reset(toGardenFormValues(gardenQuery.data))
     }
   }, [form, gardenQuery.data, mode])
+
+  useEffect(() => {
+    if (isRegularService) {
+      return
+    }
+
+    form.setValue("show_in_calendar", false, { shouldDirty: true, shouldValidate: true })
+    form.setValue("maintenance_frequency", "weekly", { shouldDirty: true })
+    form.setValue("maintenance_day_of_week", "monday", { shouldDirty: true })
+    form.setValue("maintenance_anchor_date", "", { shouldDirty: true, shouldValidate: true })
+    form.setValue("maintenance_start_time", "", { shouldDirty: true })
+    form.setValue("maintenance_end_time", "", { shouldDirty: true, shouldValidate: true })
+  }, [form, isRegularService])
+
+  useEffect(() => {
+    if (maintenanceFrequency === "weekly" && form.getValues("maintenance_anchor_date")) {
+      form.setValue("maintenance_anchor_date", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    }
+  }, [form, maintenanceFrequency])
 
   const saveMutation = useMutation({
     mutationFn: async (values: GardenFormValues) => {
@@ -109,6 +146,10 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
 
   function onSubmit(values: GardenFormValues) {
     saveMutation.mutate(values)
+  }
+
+  function resetForm() {
+    form.reset(mode === "edit" && gardenQuery.data ? toGardenFormValues(gardenQuery.data) : gardenFormDefaults)
   }
 
   if (!accessToken) {
@@ -151,7 +192,7 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-4xl border-[#dfd7c0] bg-white">
+    <Card className="mx-auto w-full max-w-5xl border-[#dfd7c0] bg-white">
       <CardHeader className="gap-3">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
@@ -171,41 +212,48 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
           </div>
         ) : (
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            <FieldGroup className="gap-5">
-              <Controller
-                control={form.control}
-                name="client_name"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="garden-client-name">Cliente</FieldLabel>
-                    <Input
-                      {...field}
-                      id="garden-client-name"
-                      aria-invalid={fieldState.invalid}
-                    />
-                    <FieldError errors={[fieldState.error]} />
-                  </Field>
-                )}
-              />
+            <section className="rounded-3xl border border-[#e7dfcd] bg-[#fbf8ef] p-5">
+              <div className="mb-5 space-y-1">
+                <h2 className="text-base font-semibold text-[#1f2f27]">Cliente e local</h2>
+                <p className="text-sm text-muted-foreground">
+                  Dados base do jardim e contacto principal.
+                </p>
+              </div>
 
-              <Controller
-                control={form.control}
-                name="address"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="garden-address">Morada</FieldLabel>
-                    <Textarea
-                      {...field}
-                      id="garden-address"
-                      aria-invalid={fieldState.invalid}
-                      className="min-h-24"
-                    />
-                    <FieldError errors={[fieldState.error]} />
-                  </Field>
-                )}
-              />
+              <FieldGroup className="gap-5">
+                <Controller
+                  control={form.control}
+                  name="client_name"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="garden-client-name">Cliente</FieldLabel>
+                      <Input
+                        {...field}
+                        id="garden-client-name"
+                        aria-invalid={fieldState.invalid}
+                      />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
 
-              <div className="grid gap-5 md:grid-cols-2">
+                <Controller
+                  control={form.control}
+                  name="address"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="garden-address">Morada</FieldLabel>
+                      <Textarea
+                        {...field}
+                        id="garden-address"
+                        aria-invalid={fieldState.invalid}
+                        className="min-h-24"
+                      />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+
                 <Controller
                   control={form.control}
                   name="phone"
@@ -221,163 +269,341 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                     </Field>
                   )}
                 />
+              </FieldGroup>
+            </section>
 
-                <Controller
-                  control={form.control}
-                  name="monthly_price"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="garden-monthly-price">
-                        Valor mensal
-                      </FieldLabel>
-                      <Input
-                        {...field}
-                        id="garden-monthly-price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
+            <section className="rounded-3xl border border-[#e7dfcd] bg-white p-5">
+              <div className="mb-5 space-y-1">
+                <h2 className="text-base font-semibold text-[#1f2f27]">Contrato e faturacao</h2>
+                <p className="text-sm text-muted-foreground">
+                  Valores comerciais e informacao administrativa do jardim.
+                </p>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <Controller
-                  control={form.control}
-                  name="maintenance_frequency"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Frequência</FieldLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger
-                          className="w-full"
+              <FieldGroup className="gap-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Controller
+                    control={form.control}
+                    name="monthly_price"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="garden-monthly-price">
+                          Valor mensal
+                        </FieldLabel>
+                        <Input
+                          {...field}
+                          id="garden-monthly-price"
+                          type="number"
+                          min="0"
+                          step="0.01"
                           aria-invalid={fieldState.invalid}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="weekly">Semanal</SelectItem>
-                          <SelectItem value="biweekly">Quinzenal</SelectItem>
-                          <SelectItem value="monthly">Mensal</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
+                        />
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
 
-                <Controller
-                  control={form.control}
-                  name="status"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel>Estado</FieldLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger
-                          className="w-full"
+                  <Controller
+                    control={form.control}
+                    name="billing_day"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="garden-billing-day">Dia de cobranca</FieldLabel>
+                        <Input
+                          {...field}
+                          id="garden-billing-day"
+                          type="number"
+                          min="1"
+                          max="31"
                           aria-invalid={fieldState.invalid}
+                        />
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Controller
+                    control={form.control}
+                    name="start_date"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="garden-start-date">Inicio contrato</FieldLabel>
+                        <Input
+                          {...field}
+                          id="garden-start-date"
+                          type="date"
+                          aria-invalid={fieldState.invalid}
+                        />
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
+
+                  <Controller
+                    control={form.control}
+                    name="status"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel>Estado</FieldLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Ativo</SelectItem>
+                            <SelectItem value="paused">Pausado</SelectItem>
+                            <SelectItem value="cancelled">Cancelado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
+                </div>
+
+                <Controller
+                  control={form.control}
+                  name="notes"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="garden-notes">Notas</FieldLabel>
+                      <Textarea
+                        {...field}
+                        id="garden-notes"
+                        aria-invalid={fieldState.invalid}
+                        className="min-h-28"
+                      />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </section>
+
+            <section className="rounded-3xl border border-[#e7dfcd] bg-white p-5">
+              <div className="mb-5 space-y-1">
+                <h2 className="text-base font-semibold text-[#1f2f27]">Rotina de manutencao</h2>
+                <p className="text-sm text-muted-foreground">
+                  Agenda automatica para o calendario sem precisar de criar tarefas fixas.
+                </p>
+              </div>
+
+              <FieldGroup className="gap-5">
+                <Controller
+                  control={form.control}
+                  name="is_regular_service"
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Trabalho regular</FieldLabel>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          type="button"
+                          variant={field.value ? "default" : "outline"}
+                          className={field.value ? "bg-[#215442] text-white hover:bg-[#183b2f]" : ""}
+                          onClick={() => field.onChange(true)}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Ativo</SelectItem>
-                          <SelectItem value="paused">Pausado</SelectItem>
-                          <SelectItem value="cancelled">Cancelado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Controller
-                  control={form.control}
-                  name="start_date"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="garden-start-date">
-                        Início contrato
-                      </FieldLabel>
-                      <Input
-                        {...field}
-                        id="garden-start-date"
-                        type="date"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      <FieldError errors={[fieldState.error]} />
+                          Sim, recorrente
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={!field.value ? "default" : "outline"}
+                          className={!field.value ? "bg-[#7a3126] text-white hover:bg-[#61271e]" : ""}
+                          onClick={() => field.onChange(false)}
+                        >
+                          Nao, pontual
+                        </Button>
+                      </div>
                     </Field>
                   )}
                 />
 
-                <Controller
-                  control={form.control}
-                  name="billing_day"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="garden-billing-day">
-                        Dia cobrança
-                      </FieldLabel>
-                      <Input
-                        {...field}
-                        id="garden-billing-day"
-                        type="number"
-                        min="1"
-                        max="31"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
-              </div>
-
-              <Controller
-                control={form.control}
-                name="notes"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="garden-notes">Notas</FieldLabel>
-                    <Textarea
-                      {...field}
-                      id="garden-notes"
-                      aria-invalid={fieldState.invalid}
-                      className="min-h-28"
+                {isRegularService ? (
+                  <>
+                    <Controller
+                      control={form.control}
+                      name="show_in_calendar"
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel>Mostrar no calendario</FieldLabel>
+                          <FieldDescription>
+                            Ativado por defeito para aparecer como evento automatico discreto.
+                          </FieldDescription>
+                          <div className="flex flex-wrap gap-3">
+                            <Button
+                              type="button"
+                              variant={field.value ? "default" : "outline"}
+                              className={field.value ? "bg-[#215442] text-white hover:bg-[#183b2f]" : ""}
+                              onClick={() => field.onChange(true)}
+                            >
+                              Sim, mostrar
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={!field.value ? "default" : "outline"}
+                              className={!field.value ? "bg-[#805a2a] text-white hover:bg-[#6b4b23]" : ""}
+                              onClick={() => field.onChange(false)}
+                            >
+                              Nao mostrar
+                            </Button>
+                          </div>
+                        </Field>
+                      )}
                     />
-                    <FieldError errors={[fieldState.error]} />
-                  </Field>
+
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      <Controller
+                        control={form.control}
+                        name="maintenance_frequency"
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel>Frequencia</FieldLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="weekly">Semanal</SelectItem>
+                                <SelectItem value="biweekly">Quinzenal</SelectItem>
+                                <SelectItem value="monthly">Mensal</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FieldDescription>
+                              {maintenanceFrequency === "weekly"
+                                ? "Repete todas as semanas no mesmo dia."
+                                : maintenanceFrequency === "biweekly"
+                                  ? "Repete de duas em duas semanas no mesmo dia da semana."
+                                  : "Repete na mesma semana do mes e no mesmo dia da semana."}
+                            </FieldDescription>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+
+                      <Controller
+                        control={form.control}
+                        name="maintenance_day_of_week"
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel>Dia da semana</FieldLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(weekdayLabels).map(([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                    </div>
+
+                    {maintenanceFrequency !== "weekly" ? (
+                      <Controller
+                        control={form.control}
+                        name="maintenance_anchor_date"
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="garden-maintenance-anchor-date">
+                              Data base da recorrencia
+                            </FieldLabel>
+                            <Input
+                              {...field}
+                              id="garden-maintenance-anchor-date"
+                              type="date"
+                              aria-invalid={fieldState.invalid}
+                            />
+                            <FieldDescription>
+                              Esta data fixa a semana, mes e ano de referencia para o padrao{" "}
+                              {frequencyLabels[maintenanceFrequency]}.
+                            </FieldDescription>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                    ) : null}
+
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <Controller
+                        control={form.control}
+                        name="maintenance_start_time"
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="garden-maintenance-start-time">
+                              Hora de inicio
+                            </FieldLabel>
+                            <Input
+                              {...field}
+                              id="garden-maintenance-start-time"
+                              type="time"
+                              aria-invalid={fieldState.invalid}
+                            />
+                            <FieldDescription>Opcional, para aparecer no calendario.</FieldDescription>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+
+                      <Controller
+                        control={form.control}
+                        name="maintenance_end_time"
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="garden-maintenance-end-time">
+                              Hora de fim
+                            </FieldLabel>
+                            <Input
+                              {...field}
+                              id="garden-maintenance-end-time"
+                              type="time"
+                              aria-invalid={fieldState.invalid}
+                            />
+                            <FieldDescription>Opcional, para aparecer no calendario.</FieldDescription>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[#dfd7c0] bg-[#fbf8ef] px-4 py-4 text-sm text-muted-foreground">
+                    Este jardim fica sem agenda automatica. Podes continuar a criar tarefas manuais quando precisares.
+                  </div>
                 )}
-              />
+              </FieldGroup>
+            </section>
 
-              {saveMutation.isError ? (
-                <FieldError>{saveMutation.error.message}</FieldError>
-              ) : null}
+            {saveMutation.isError ? (
+              <FieldError>{saveMutation.error.message}</FieldError>
+            ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Button
-                  type="submit"
-                  className="bg-[#215442] text-white hover:bg-[#183b2f]"
-                  disabled={saveMutation.isPending}
-                >
-                  {saveMutation.isPending
-                    ? "A guardar..."
-                    : mode === "edit"
-                      ? "Guardar alterações"
-                      : "Criar jardim"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => form.reset(gardenFormDefaults)}
-                >
-                  Limpar formulário
-                </Button>
-              </div>
-            </FieldGroup>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="submit"
+                className="bg-[#215442] text-white hover:bg-[#183b2f]"
+                disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending
+                  ? "A guardar..."
+                  : mode === "edit"
+                    ? "Guardar alteracoes"
+                    : "Criar jardim"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetForm}
+              >
+                Limpar formulario
+              </Button>
+            </div>
           </form>
         )}
       </CardContent>

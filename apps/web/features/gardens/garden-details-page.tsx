@@ -18,6 +18,7 @@ import type { Garden, GardenStatus } from "@/features/gardens/types"
 import {
   formatCurrency,
   formatDate,
+  formatGardenSchedule,
   frequencyLabels,
   openAddressInMaps,
   statusLabels,
@@ -160,7 +161,7 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
       </header>
 
       {showFinancialDetails ? (
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section className="grid gap-4 xl:grid-cols-4">
           <SummaryTile
             icon={EuroCircleIcon}
             label="Valor mensal"
@@ -177,6 +178,11 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
             icon={Calendar03Icon}
             label="Inicio de contrato"
             value={garden.start_date ? formatDate(garden.start_date) : "Nao definido"}
+          />
+          <SummaryTile
+            icon={Calendar03Icon}
+            label="Rotina automatica"
+            value={formatGardenSchedule(garden)}
           />
         </section>
       ) : null}

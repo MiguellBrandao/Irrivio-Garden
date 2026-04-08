@@ -1,5 +1,13 @@
 export type GardenStatus = "active" | "paused" | "cancelled"
 export type GardenFrequency = "weekly" | "biweekly" | "monthly"
+export type GardenWeekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday"
 
 export type Garden = {
   id: string
@@ -8,7 +16,13 @@ export type Garden = {
   address: string
   phone: string | null
   monthly_price?: string | null
+  is_regular_service: boolean
+  show_in_calendar: boolean
   maintenance_frequency: GardenFrequency | null
+  maintenance_day_of_week: GardenWeekday | null
+  maintenance_anchor_date?: string | null
+  maintenance_start_time?: string | null
+  maintenance_end_time?: string | null
   start_date?: string | null
   billing_day?: number | null
   status: GardenStatus
@@ -80,12 +94,18 @@ export type SaveGardenPayload = {
   client_name: string
   address: string
   phone?: string
-  monthly_price?: number
-  maintenance_frequency?: GardenFrequency
-  start_date?: string
-  billing_day?: number
+  monthly_price?: number | null
+  is_regular_service?: boolean
+  show_in_calendar?: boolean
+  maintenance_frequency?: GardenFrequency | null
+  maintenance_day_of_week?: GardenWeekday | null
+  maintenance_anchor_date?: string | null
+  maintenance_start_time?: string | null
+  maintenance_end_time?: string | null
+  start_date?: string | null
+  billing_day?: number | null
   status?: GardenStatus
-  notes?: string
+  notes?: string | null
 }
 
 export type SaveGardenProductUsagePayload = {

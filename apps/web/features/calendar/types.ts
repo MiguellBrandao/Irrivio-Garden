@@ -1,4 +1,5 @@
 import type { ProductUnit } from "@/features/stock/types"
+import type { GardenFrequency } from "@/features/gardens/types"
 
 export const TASK_TYPES = [
   "maintenance",
@@ -23,6 +24,24 @@ export type Task = {
   description: string | null
   created_at: string
 }
+
+export type TaskCalendarEntry = Task & {
+  kind: "task"
+}
+
+export type AutomaticGardenCalendarEntry = {
+  id: string
+  kind: "automatic-garden"
+  garden_id: string
+  garden_name: string
+  date: string
+  start_time: string | null
+  end_time: string | null
+  frequency: GardenFrequency
+  description: string
+}
+
+export type CalendarEntry = TaskCalendarEntry | AutomaticGardenCalendarEntry
 
 export type SaveTaskPayload = {
   garden_id: string

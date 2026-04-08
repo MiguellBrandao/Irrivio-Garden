@@ -127,6 +127,13 @@
       "when": 1773792000000,
       "tag": "0019_company_assets_base64",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773871200000,
+      "tag": "0020_garden_schedule_fields",
+      "breakpoints": true
     }
   ]
 }
