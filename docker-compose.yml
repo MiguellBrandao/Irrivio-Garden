@@ -3,10 +3,11 @@ services:
     image: node:22-alpine
     working_dir: /workspace
     command: >
-      sh -c "corepack enable
+      sh -c "rm -f /tmp/.workspace-ready
+      && corepack enable
       && corepack prepare pnpm@10.0.0 --activate
       && pnpm install --force --reporter=append-only
-      && touch /workspace/.workspace-ready
+      && touch /tmp/.workspace-ready
       && tail -f /dev/null"
     volumes:
       - ./:/workspace
@@ -18,7 +19,7 @@ services:
       PNPM_HOME: /pnpm
       CI: "true"
     healthcheck:
-      test: ["CMD-SHELL", "test -f /workspace/.workspace-ready"]
+      test: ["CMD-SHELL", "test -f /tmp/.workspace-ready && test -x /workspace/apps/api/node_modules/.bin/drizzle-kit"]
       interval: 2s
       timeout: 2s
       retries: 60
@@ -76,6 +77,7 @@ services:
       - api-node-modules:/workspace/apps/api/node_modules
       - web-node-modules:/workspace/apps/web/node_modules
     environment:
+      PORT: "3000"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/floripa
       CHOKIDAR_USEPOLLING: "1"
       WATCHPACK_POLLING: "true"
@@ -92,7 +94,7 @@ services:
     command: >
       sh -c "corepack enable
       && corepack prepare pnpm@10.0.0 --activate
-      && pnpm --filter web dev -- --hostname 0.0.0.0 --port 3000"
+      && pnpm --filter web exec next dev --hostname 0.0.0.0 --port 3000"
     volumes:
       - ./:/workspace
       - pnpm-store:/pnpm/store

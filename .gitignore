@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+.workspace-ready
 
 # Build outputs
 .next/
