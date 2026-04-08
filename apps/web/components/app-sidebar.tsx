@@ -21,6 +21,7 @@ import {
   Invoice03Icon,
   Leaf02Icon,
   PackageIcon,
+  PencilEdit02Icon,
   SentIcon,
   UserGroupIcon,
   UserIcon,
@@ -67,6 +68,11 @@ const adminManagementItems = [
     name: "Equipas",
     url: "/teams",
     icon: <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} />,
+  },
+  {
+    name: "Settings",
+    url: "/settings",
+    icon: <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />,
   },
 ]
 

@@ -75,10 +75,10 @@ export function PlatformCompanyDetailPage({
           </p>
         </div>
         <div className="flex justify-start lg:justify-end">
-          <Button asChild variant="outline" size="icon-sm">
+          <Button asChild variant="outline" size="sm">
             <Link href={`/platform/companies/${company.id}/edit`}>
               <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-              <span className="sr-only">Editar empresa</span>
+              Editar empresa
             </Link>
           </Button>
         </div>
