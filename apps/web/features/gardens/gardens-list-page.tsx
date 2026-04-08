@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { ChangeEvent, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
@@ -16,6 +16,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -32,8 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { deleteGarden, listGardens } from "@/features/gardens/api"
-import type { Garden, GardenStatus } from "@/features/gardens/types"
+import { createGarden, deleteGarden, listGardens } from "@/features/gardens/api"
+import type { Garden, GardenStatus, SaveGardenPayload } from "@/features/gardens/types"
 import {
   formatCurrency,
   formatDate,
@@ -44,6 +50,9 @@ import { useAuthStore } from "@/lib/auth/store"
 import { cn } from "@/lib/utils"
 import {
   Add01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  MoreVerticalIcon,
   PencilEdit02Icon,
   ViewIcon,
 } from "@hugeicons/core-free-icons"
@@ -54,6 +63,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20]
 export function GardensListPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const accessToken = useAuthStore((state) => state.accessToken)
   const activeCompanyId = useAuthStore((state) => state.activeCompanyId)
   const activeCompany = useAuthStore((state) =>
@@ -112,6 +122,34 @@ export function GardensListPage() {
     },
   })
 
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      if (!accessToken) {
+        throw new Error("Sem sessao ativa.")
+      }
+
+      const content = await file.text()
+      const records = parseGardensCsv(content)
+
+      if (!records.length) {
+        throw new Error("O ficheiro CSV nao tem registos validos para importar.")
+      }
+
+      for (const record of records) {
+        await createGarden(accessToken, record)
+      }
+
+      return records.length
+    },
+    onSuccess: async (count) => {
+      await queryClient.invalidateQueries({ queryKey: ["gardens"] })
+      toast.success(`${count} jardim(ns) importado(s) com sucesso.`)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Nao foi possivel importar o ficheiro CSV.")
+    },
+  })
+
   function openGardenDetails(gardenId: string) {
     router.push(`/gardens/${gardenId}`)
   }
@@ -126,6 +164,41 @@ export function GardensListPage() {
 
     event.preventDefault()
     openGardenDetails(gardenId)
+  }
+
+  function handleExportCsv() {
+    const gardens = gardensQuery.data ?? []
+
+    if (!gardens.length) {
+      toast.error("Nao existem jardins para exportar.")
+      return
+    }
+
+    const csvContent = buildGardensCsv(gardens)
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = `gardens-${activeCompany?.slug ?? "company"}.csv`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleImportSelect() {
+    importInputRef.current?.click()
+  }
+
+  function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+
+    if (!file) {
+      return
+    }
+
+    importMutation.mutate(file)
   }
 
   if (!accessToken) {
@@ -190,12 +263,39 @@ export function GardensListPage() {
               </SelectContent>
             </Select>
             {isAdmin ? (
-              <Button asChild className="bg-[#215442] text-white hover:bg-[#183b2f]">
-                <Link href="/gardens/new">
-                  <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-                  Criar jardim
-                </Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button asChild className="bg-[#215442] text-white hover:bg-[#183b2f]">
+                  <Link href="/gardens/new">
+                    <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+                    Criar jardim
+                  </Link>
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon-sm" disabled={importMutation.isPending}>
+                      <HugeiconsIcon icon={MoreVerticalIcon} strokeWidth={2} />
+                      <span className="sr-only">Mais opcoes</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-44">
+                    <DropdownMenuItem onSelect={handleImportSelect} disabled={importMutation.isPending}>
+                      <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} />
+                      <span>{importMutation.isPending ? "A importar CSV..." : "Import CSV"}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handleExportCsv} disabled={gardensQuery.isLoading}>
+                      <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} />
+                      <span>Export CSV</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleImportFileChange}
+                />
+              </div>
             ) : null}
           </div>
         </div>
@@ -386,6 +486,176 @@ export function GardensListPage() {
       </CardContent>
     </Card>
   )
+}
+
+const GARDEN_CSV_HEADERS = [
+  "id",
+  "client_name",
+  "address",
+  "phone",
+  "monthly_price",
+  "maintenance_frequency",
+  "start_date",
+  "billing_day",
+  "status",
+  "notes",
+  "created_at",
+] as const
+
+function buildGardensCsv(gardens: Garden[]) {
+  const header = GARDEN_CSV_HEADERS.join(",")
+  const rows = gardens.map((garden) =>
+    [
+      garden.id,
+      garden.client_name,
+      garden.address,
+      garden.phone ?? "",
+      garden.monthly_price ?? "",
+      garden.maintenance_frequency ?? "",
+      garden.start_date ?? "",
+      garden.billing_day ?? "",
+      garden.status,
+      garden.notes ?? "",
+      garden.created_at,
+    ]
+      .map(escapeCsvValue)
+      .join(",")
+  )
+
+  return [header, ...rows].join("\n")
+}
+
+function escapeCsvValue(value: string | number) {
+  const normalized = String(value)
+  const escaped = normalized.replaceAll('"', '""')
+
+  if (/[",\n]/.test(escaped)) {
+    return `"${escaped}"`
+  }
+
+  return escaped
+}
+
+function parseGardensCsv(content: string) {
+  const rows = parseCsvRows(content)
+
+  if (rows.length < 2) {
+    return []
+  }
+
+  const headers = rows[0].map((value) => normalizeCsvHeader(value))
+
+  return rows
+    .slice(1)
+    .filter((row) => row.some((value) => value.trim() !== ""))
+    .map((row, index) => mapCsvRowToGardenPayload(headers, row, index + 2))
+}
+
+function normalizeCsvHeader(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function mapCsvRowToGardenPayload(
+  headers: string[],
+  row: string[],
+  rowNumber: number
+): SaveGardenPayload {
+  const data = Object.fromEntries(headers.map((header, index) => [header, row[index]?.trim() ?? ""]))
+
+  const clientName = data.client_name
+  const address = data.address
+
+  if (!clientName || !address) {
+    throw new Error(`A linha ${rowNumber} do CSV tem de incluir client_name e address.`)
+  }
+
+  const monthlyPrice = data.monthly_price ? Number(data.monthly_price) : undefined
+  if (data.monthly_price && Number.isNaN(monthlyPrice)) {
+    throw new Error(`A linha ${rowNumber} do CSV tem monthly_price invalido.`)
+  }
+
+  const billingDay = data.billing_day ? Number(data.billing_day) : undefined
+  if (data.billing_day && (Number.isNaN(billingDay) || billingDay < 1 || billingDay > 31)) {
+    throw new Error(`A linha ${rowNumber} do CSV tem billing_day invalido.`)
+  }
+
+  const maintenanceFrequency = data.maintenance_frequency
+  if (
+    maintenanceFrequency &&
+    maintenanceFrequency !== "weekly" &&
+    maintenanceFrequency !== "biweekly" &&
+    maintenanceFrequency !== "monthly"
+  ) {
+    throw new Error(`A linha ${rowNumber} do CSV tem maintenance_frequency invalida.`)
+  }
+
+  const status = data.status || "active"
+  if (status !== "active" && status !== "paused" && status !== "cancelled") {
+    throw new Error(`A linha ${rowNumber} do CSV tem status invalido.`)
+  }
+
+  return {
+    client_name: clientName,
+    address,
+    phone: data.phone || undefined,
+    monthly_price: monthlyPrice,
+    maintenance_frequency:
+      (maintenanceFrequency as Garden["maintenance_frequency"] | "") || undefined,
+    start_date: data.start_date || undefined,
+    billing_day: billingDay,
+    status: status as GardenStatus,
+    notes: data.notes || undefined,
+  }
+}
+
+function parseCsvRows(content: string) {
+  const normalized = content.replace(/^\uFEFF/, "")
+  const rows: string[][] = []
+  let currentRow: string[] = []
+  let currentValue = ""
+  let isInsideQuotes = false
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index]
+    const nextChar = normalized[index + 1]
+
+    if (char === '"') {
+      if (isInsideQuotes && nextChar === '"') {
+        currentValue += '"'
+        index += 1
+      } else {
+        isInsideQuotes = !isInsideQuotes
+      }
+      continue
+    }
+
+    if (char === "," && !isInsideQuotes) {
+      currentRow.push(currentValue)
+      currentValue = ""
+      continue
+    }
+
+    if ((char === "\n" || char === "\r") && !isInsideQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1
+      }
+
+      currentRow.push(currentValue)
+      rows.push(currentRow)
+      currentRow = []
+      currentValue = ""
+      continue
+    }
+
+    currentValue += char
+  }
+
+  if (currentValue !== "" || currentRow.length > 0) {
+    currentRow.push(currentValue)
+    rows.push(currentRow)
+  }
+
+  return rows
 }
 
 type GardenActionButtonsProps = {
