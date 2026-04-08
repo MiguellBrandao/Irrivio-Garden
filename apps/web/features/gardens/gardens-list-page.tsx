@@ -575,8 +575,15 @@ function mapCsvRowToGardenPayload(
   }
 
   const billingDay = data.billing_day ? Number(data.billing_day) : undefined
-  if (data.billing_day && (Number.isNaN(billingDay) || billingDay < 1 || billingDay > 31)) {
-    throw new Error(`A linha ${rowNumber} do CSV tem billing_day invalido.`)
+  if (data.billing_day) {
+    if (
+      billingDay === undefined ||
+      Number.isNaN(billingDay) ||
+      billingDay < 1 ||
+      billingDay > 31
+    ) {
+      throw new Error(`A linha ${rowNumber} do CSV tem billing_day invalido.`)
+    }
   }
 
   const maintenanceFrequency = data.maintenance_frequency
