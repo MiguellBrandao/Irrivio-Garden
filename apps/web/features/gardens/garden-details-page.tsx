@@ -19,6 +19,7 @@ import {
   formatCurrency,
   formatDate,
   frequencyLabels,
+  openAddressInMaps,
   statusLabels,
 } from "@/features/gardens/utils"
 import { useAuthStore } from "@/lib/auth/store"
@@ -97,6 +98,16 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
   const hasNotes = Boolean(garden.notes?.trim())
   const showFinancialDetails = isAdmin
 
+  function handleOpenLocation() {
+    const address = garden.address?.trim()
+
+    if (!address) {
+      return
+    }
+
+    openAddressInMaps(address)
+  }
+
   return (
     <div className="space-y-5">
       <header className="space-y-4">
@@ -125,6 +136,16 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
                 <HugeiconsIcon icon={ArrowLeftIcon} strokeWidth={2} />
                 Voltar aos jardins
               </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenLocation}
+              disabled={!garden.address?.trim()}
+            >
+              <HugeiconsIcon icon={MapPinpoint02Icon} strokeWidth={2} />
+              Abrir localizacao
             </Button>
             {isAdmin ? (
               <Button asChild size="sm" className="bg-[#215442] text-white hover:bg-[#183b2f]">

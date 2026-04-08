@@ -73,3 +73,29 @@ export function formatDate(value: string) {
     dateStyle: "short",
   }).format(new Date(value))
 }
+
+export function openAddressInMaps(address: string) {
+  const normalizedAddress = address.trim()
+
+  if (!normalizedAddress) {
+    return false
+  }
+
+  const encodedAddress = encodeURIComponent(normalizedAddress)
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
+  const mobileLocationUrl = `geo:0,0?q=${encodedAddress}`
+  const mobileNavigator = navigator as Navigator & {
+    userAgentData?: { mobile?: boolean }
+  }
+  const isMobile =
+    mobileNavigator.userAgentData?.mobile === true ||
+    /android|iphone|ipad|ipod|windows phone|mobile/i.test(navigator.userAgent)
+
+  if (isMobile) {
+    window.location.href = mobileLocationUrl
+    return true
+  }
+
+  window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
+  return true
+}

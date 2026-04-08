@@ -44,6 +44,7 @@ import {
   formatCurrency,
   formatDate,
   frequencyLabels,
+  openAddressInMaps,
   statusLabels,
 } from "@/features/gardens/utils"
 import { useAuthStore } from "@/lib/auth/store"
@@ -52,6 +53,7 @@ import {
   Add01Icon,
   ArrowDown01Icon,
   ArrowUp01Icon,
+  MapPinpoint02Icon,
   MoreVerticalIcon,
   PencilEdit02Icon,
   ViewIcon,
@@ -686,6 +688,16 @@ function GardenActionButtons({
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        onClick={() => openAddressInMaps(garden.address)}
+        disabled={!garden.address?.trim()}
+      >
+        <HugeiconsIcon icon={MapPinpoint02Icon} strokeWidth={2} />
+        <span className="sr-only">Abrir localizacao do jardim</span>
+      </Button>
       <Button asChild variant="outline" size="icon-sm">
         <Link href={`/gardens/${garden.id}`}>
           <HugeiconsIcon icon={ViewIcon} strokeWidth={2} />

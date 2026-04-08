@@ -62,6 +62,7 @@ import {
 import { listTeams } from "@/features/employees/api"
 import { listGardens, listGardenIrrigationZones } from "@/features/gardens/api"
 import { IrrigationOverviewCard } from "@/features/gardens/irrigation-overview-card"
+import { openAddressInMaps } from "@/features/gardens/utils"
 import { listProducts } from "@/features/stock/api"
 import type { Product } from "@/features/stock/types"
 import { useAuthStore } from "@/lib/auth/store"
@@ -334,22 +335,7 @@ export function TaskDetailsPage({ taskId }: TaskDetailsPageProps) {
       return
     }
 
-    const encodedAddress = encodeURIComponent(address)
-    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
-    const mobileLocationUrl = `geo:0,0?q=${encodedAddress}`
-    const mobileNavigator = navigator as Navigator & {
-      userAgentData?: { mobile?: boolean }
-    }
-    const isMobile =
-      mobileNavigator.userAgentData?.mobile === true ||
-      /android|iphone|ipad|ipod|windows phone|mobile/i.test(navigator.userAgent)
-
-    if (isMobile) {
-      window.location.href = mobileLocationUrl
-      return
-    }
-
-    window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
+    openAddressInMaps(address)
   }
 
   if (!accessToken) {
