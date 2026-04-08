@@ -46,7 +46,8 @@ services:
     command: >
       sh -c "corepack enable
       && corepack prepare pnpm@10.0.0 --activate
-      && pnpm --filter api db:migrate"
+      && pnpm --filter api db:migrate
+      && pnpm --filter api db:ensure-super-admin"
     volumes:
       - ./:/workspace
       - pnpm-store:/pnpm/store
@@ -55,6 +56,8 @@ services:
       - web-node-modules:/workspace/apps/web/node_modules
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/floripa
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
       CI: "true"
     depends_on:
       workspace:
