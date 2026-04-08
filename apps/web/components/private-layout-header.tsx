@@ -25,7 +25,7 @@ const labels: Record<string, string> = {
   payments: "Pagamentos",
   quotes: "Orcamentos",
   reports: "Relatorios",
-  settings: "Settings",
+  settings: "Identidade visual",
   profile: "Perfil",
 }
 

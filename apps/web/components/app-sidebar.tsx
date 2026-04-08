@@ -21,7 +21,7 @@ import {
   Invoice03Icon,
   Leaf02Icon,
   PackageIcon,
-  PencilEdit02Icon,
+  PaintBoardIcon,
   SentIcon,
   UserGroupIcon,
   UserIcon,
@@ -70,9 +70,9 @@ const adminManagementItems = [
     icon: <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} />,
   },
   {
-    name: "Settings",
+    name: "Identidade visual",
     url: "/settings",
-    icon: <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />,
+    icon: <HugeiconsIcon icon={PaintBoardIcon} strokeWidth={2} />,
   },
 ]
 

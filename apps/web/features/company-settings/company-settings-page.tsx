@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { Building03Icon, PaintBoardIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
+import { PaintBoardIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useEffect } from "react"
 import { Controller, useForm } from "react-hook-form"
@@ -154,27 +154,19 @@ export function CompanySettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <section className="rounded-[2rem] border border-[#d8cfb6] bg-[linear-gradient(135deg,_#fbf8ef_0%,_#f2ead7_100%)] p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#d8cfb6] bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#215442]">
-              <HugeiconsIcon icon={Building03Icon} strokeWidth={2} />
-              Definicoes da empresa
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-[#1f2f27]">
-                {activeCompany.name}
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-[#4d5a51]">
-                Atualiza a identidade visual, contacto e dados de faturacao da tua empresa.
-              </p>
-            </div>
-          </div>
-          <Button asChild variant="outline" className="bg-white/80">
-            <Link href="/dashboard">Voltar ao painel</Link>
-          </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-[#1f2f27]">
+            Identidade visual
+          </h1>
+          <p className="max-w-2xl text-sm leading-6 text-[#4d5a51]">
+            Atualiza a identidade visual, contacto e dados de faturacao da {activeCompany.name}.
+          </p>
         </div>
-      </section>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">Voltar ao painel</Link>
+        </Button>
+      </div>
 
       <form className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" onSubmit={form.handleSubmit(onSubmit)}>
         <Card className="border-[#dfd7c0] bg-white">
@@ -265,15 +257,6 @@ export function CompanySettingsPage() {
                 onFileChange={(files) => handleAssetSelection("favicon_path", files)}
               />
             </CardContent>
-          </Card>
-
-          <Card className="border-[#dfd7c0] bg-[#fbf8ef]">
-            <CardHeader>
-              <CardTitle>Onde isto aparece</CardTitle>
-              <CardDescription>
-                Estas alteracoes refletem-se no seletor de empresa, favicon, ecras internas e documentos.
-              </CardDescription>
-            </CardHeader>
           </Card>
         </div>
       </form>
