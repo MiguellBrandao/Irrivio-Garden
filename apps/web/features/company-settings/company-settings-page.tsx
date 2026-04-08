@@ -1,6 +1,4 @@
 "use client"
-
-import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { PaintBoardIcon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
@@ -163,9 +161,6 @@ export function CompanySettingsPage() {
             Atualiza a identidade visual, contacto e dados de faturacao da {activeCompany.name}.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/dashboard">Voltar ao painel</Link>
-        </Button>
       </div>
 
       <form className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" onSubmit={form.handleSubmit(onSubmit)}>
