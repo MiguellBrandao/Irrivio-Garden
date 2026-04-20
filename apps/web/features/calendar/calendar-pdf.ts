@@ -33,14 +33,14 @@ export async function generateCalendarPdf(
 
   // Colors - convert hex to RGB
   const colors = {
-    text: [31, 47, 39], // #1f2f27
-    muted: [107, 114, 128], // #6b7280
-    accent: [33, 84, 66], // #215442
-    accentSoft: [231, 239, 233], // #e7efe9
-    border: [217, 211, 195], // #d9d3c3
-    surface: [247, 243, 232], // #f7f3e8
-    lightBg: [254, 249, 240], // #fef9f0
-    weekend: [255, 245, 230], // #fff5e6
+    text: [31, 47, 39] as [number, number, number], // #1f2f27
+    muted: [107, 114, 128] as [number, number, number], // #6b7280
+    accent: [33, 84, 66] as [number, number, number], // #215442
+    accentSoft: [231, 239, 233] as [number, number, number], // #e7efe9
+    border: [217, 211, 195] as [number, number, number], // #d9d3c3
+    surface: [247, 243, 232] as [number, number, number], // #f7f3e8
+    lightBg: [254, 249, 240] as [number, number, number], // #fef9f0
+    weekend: [255, 245, 230] as [number, number, number], // #fff5e6
   }
 
   // Header
@@ -48,7 +48,7 @@ export async function generateCalendarPdf(
 
   // Title
   doc.setFontSize(24)
-  doc.setFont(undefined, "bold")
+  doc.setFont('helvetica', 'bold')
   doc.setTextColor(...colors.text)
   doc.text(`Calendário - ${format(monthStart, "MMMM yyyy", { locale: pt }).toUpperCase()}`, marginX, cursorY)
   cursorY += 12
@@ -60,7 +60,7 @@ export async function generateCalendarPdf(
 
   // Draw day headers
   doc.setFontSize(9)
-  doc.setFont(undefined, "bold")
+  doc.setFont('helvetica', 'bold')
   doc.setTextColor(...colors.accent)
 
   dayLabels.forEach((label, index) => {
@@ -101,7 +101,7 @@ export async function generateCalendarPdf(
     doc.rect(cellX, cellY, cellWidth, rowHeight)
 
     // Day number
-    doc.setFont(undefined, "bold")
+    doc.setFont('helvetica', 'bold')
     if (isCurrentMonth) {
       doc.setTextColor(...colors.text)
     } else {
@@ -115,7 +115,7 @@ export async function generateCalendarPdf(
     const dayEntries = entriesByDate[dayKey] ?? []
 
     doc.setFontSize(5.5)
-    doc.setFont(undefined, "normal")
+    doc.setFont('helvetica', 'normal')
 
     let entryY = cellY + 6
     const maxEntriesPerCell = 4
