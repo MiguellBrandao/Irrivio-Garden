@@ -4,7 +4,7 @@ import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { addDays, addMonths, format, isToday, startOfMonth } from "date-fns"
 import { useMemo, useState } from "react"
-import { Add01Icon, InformationCircleIcon } from "@hugeicons/core-free-icons"
+import { Add01Icon, InformationCircleIcon, Download02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +35,7 @@ import {
   taskTypeLabels,
   toIsoDate,
 } from "@/features/calendar/utils"
+import { downloadCalendarPdf, generateCalendarPdf } from "@/features/calendar/calendar-pdf"
 import { listTeams } from "@/features/employees/api"
 import { listGardens } from "@/features/gardens/api"
 import { useAuthStore } from "@/lib/auth/store"
@@ -49,6 +50,7 @@ export function CalendarPage() {
   const isAdmin = activeCompany?.role === "admin"
   const [desktopMonthDate, setDesktopMonthDate] = useState(() => startOfMonth(new Date()))
   const [mobileDayDate, setMobileDayDate] = useState(() => new Date())
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false)
 
   const queryRange = useMemo(() => {
     const desktopRange = getVisibleMonthRange(desktopMonthDate)
@@ -112,6 +114,25 @@ export function CalendarPage() {
   )
   const monthDays = useMemo(() => getMonthDays(desktopMonthDate), [desktopMonthDate])
   const mobileDayEntries = entriesByDate[toIsoDate(mobileDayDate)] ?? []
+
+  const handlePrintCalendar = async () => {
+    if (!activeCompany) return
+    setIsPrintingPdf(true)
+    try {
+      const doc = await generateCalendarPdf(
+        desktopMonthDate,
+        activeCompany,
+        calendarEntries,
+        teamNameById,
+        gardenNameById
+      )
+      downloadCalendarPdf(doc, desktopMonthDate)
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error)
+    } finally {
+      setIsPrintingPdf(false)
+    }
+  }
 
   if (!accessToken) {
     return (
@@ -178,6 +199,15 @@ export function CalendarPage() {
                 }
               >
                 &gt;
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintCalendar}
+                disabled={isPrintingPdf}
+              >
+                <HugeiconsIcon icon={Download02Icon} strokeWidth={2} />
+                {isPrintingPdf ? "A gerar..." : "Imprimir"}
               </Button>
             </div>
           </div>
