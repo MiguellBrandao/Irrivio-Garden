@@ -122,6 +122,22 @@ export const gardens = pgTable('gardens', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const gardenTeams = pgTable(
+  'garden_teams',
+  {
+    gardenId: uuid('garden_id')
+      .notNull()
+      .references(() => gardens.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.gardenId, table.teamId] }),
+  }),
+);
+
 export const taskTypeEnum = pgEnum('task_type_enum', [
   'maintenance',
   'pruning',

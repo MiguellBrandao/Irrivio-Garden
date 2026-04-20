@@ -1,0 +1,2 @@
+ALTER TABLE gardens
+  ADD COLUMN team_id uuid REFERENCES teams(id) ON DELETE SET NULL;

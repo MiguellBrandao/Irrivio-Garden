@@ -27,6 +27,7 @@ export type Garden = {
   billing_day?: number | null
   status: GardenStatus
   notes: string | null
+  team_ids: string[]
   created_at: string
 }
 
@@ -106,6 +107,8 @@ export type SaveGardenPayload = {
   billing_day?: number | null
   status?: GardenStatus
   notes?: string | null
+  team_id?: string | null
+  team_ids?: string[] | null
 }
 
 export type SaveGardenProductUsagePayload = {

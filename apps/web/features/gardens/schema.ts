@@ -27,6 +27,7 @@ export const gardenFormSchema = z
       "saturday",
       "sunday",
     ]),
+    team_ids: z.array(z.string()),
     maintenance_anchor_date: z
       .string()
       .trim()
@@ -123,4 +124,5 @@ export const gardenFormDefaults: GardenFormValues = {
   billing_day: "",
   status: "active",
   notes: "",
+  team_ids: [],
 }

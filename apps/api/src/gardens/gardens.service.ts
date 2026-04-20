@@ -6,7 +6,7 @@ import {
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { CompaniesService } from '../companies/companies.service';
 import { db } from '../db';
-import { companyMembershipTeams, gardens, tasks } from '../db/schema';
+import { companyMembershipTeams, gardenTeams, gardens, tasks, teams } from '../db/schema';
 import { CreateGardenDto } from './dto/create-garden.dto';
 import { UpdateGardenDto } from './dto/update-garden.dto';
 
@@ -134,6 +134,15 @@ export class GardensService {
 
   async create(dto: CreateGardenDto, requester: Requester) {
     await this.companiesService.assertAdminAccess(requester.id, dto.company_id);
+
+    const teamIds = this.getRequestedTeamIds(dto) ?? [];
+
+    if (teamIds.length > 0) {
+      await Promise.all(
+        teamIds.map((teamId) => this.assertTeamExistsInCompany(teamId, dto.company_id)),
+      );
+    }
+
     const schedule = this.normalizeSchedule(dto);
 
     const rows = await db
@@ -177,7 +186,13 @@ export class GardensService {
         created_at: gardens.createdAt,
       });
 
-    return rows[0];
+    if (teamIds.length > 0) {
+      await db.insert(gardenTeams).values(
+        teamIds.map((teamId) => ({ gardenId: rows[0].id, teamId })),
+      );
+    }
+
+    return { ...rows[0], team_ids: teamIds };
   }
 
   async update(id: string, dto: UpdateGardenDto, requester: Requester) {
@@ -204,6 +219,7 @@ export class GardensService {
       clientName?: string;
       address?: string;
       phone?: string;
+      teamId?: string | null;
       monthlyPrice?: string;
       isRegularService?: boolean;
       showInCalendar?: boolean;
@@ -234,6 +250,22 @@ export class GardensService {
     if (dto.phone !== undefined) {
       setPayload.phone = dto.phone;
       responsePayload.phone = dto.phone;
+    }
+    const requestedTeamIds = this.getRequestedTeamIds(dto);
+    if (requestedTeamIds !== undefined) {
+      await Promise.all(
+        requestedTeamIds.map((teamId) =>
+          this.assertTeamExistsInCompany(teamId, current.company_id),
+        ),
+      );
+
+      await db.delete(gardenTeams).where(eq(gardenTeams.gardenId, id));
+      if (requestedTeamIds.length > 0) {
+        await db.insert(gardenTeams).values(
+          requestedTeamIds.map((teamId) => ({ gardenId: id, teamId })),
+        );
+      }
+      responsePayload.team_ids = requestedTeamIds;
     }
     if (dto.monthly_price !== undefined) {
       setPayload.monthlyPrice = dto.monthly_price.toString();
@@ -272,15 +304,18 @@ export class GardensService {
       responsePayload.notes = dto.notes;
     }
 
-    if (Object.keys(setPayload).length === 0) {
+    if (Object.keys(setPayload).length === 0 && requestedTeamIds === undefined) {
       throw new BadRequestException('No fields provided for update');
     }
 
-    const updated = await db
-      .update(gardens)
-      .set(setPayload)
-      .where(eq(gardens.id, id))
-      .returning({ id: gardens.id });
+    let updated = [{ id }];
+    if (Object.keys(setPayload).length > 0) {
+      updated = await db
+        .update(gardens)
+        .set(setPayload)
+        .where(eq(gardens.id, id))
+        .returning({ id: gardens.id });
+    }
 
     return updated.length > 0 ? responsePayload : null;
   }
@@ -316,8 +351,36 @@ export class GardensService {
     return garden;
   }
 
+  async assertTeamExistsInCompany(teamId: string, companyId: string) {
+    const rows = await db
+      .select({ id: teams.id })
+      .from(teams)
+      .where(and(eq(teams.id, teamId), eq(teams.companyId, companyId)))
+      .limit(1);
+
+    if (rows.length === 0) {
+      throw new NotFoundException('Team not found');
+    }
+
+    return rows[0];
+  }
+
+  private getRequestedTeamIds(
+    dto: CreateGardenDto | UpdateGardenDto,
+  ): string[] | undefined {
+    if (dto.team_ids !== undefined) {
+      return dto.team_ids ? [...new Set(dto.team_ids)] : [];
+    }
+
+    if (dto.team_id !== undefined) {
+      return dto.team_id ? [dto.team_id] : [];
+    }
+
+    return undefined;
+  }
+
   private async findAllFull(companyIds: string[]) {
-    return db
+    const rows = await db
       .select({
         id: gardens.id,
         company_id: gardens.companyId,
@@ -341,6 +404,29 @@ export class GardensService {
       .from(gardens)
       .where(inArray(gardens.companyId, companyIds))
       .orderBy(desc(gardens.createdAt));
+
+    const gardenIds = rows.map((garden) => garden.id);
+    const gardenTeamRows =
+      gardenIds.length > 0
+        ? await db
+            .select({
+              garden_id: gardenTeams.gardenId,
+              team_id: gardenTeams.teamId,
+            })
+            .from(gardenTeams)
+            .where(inArray(gardenTeams.gardenId, gardenIds))
+        : [];
+
+    const gardenTeamMap = new Map<string, string[]>();
+    gardenTeamRows.forEach((row) => {
+      const existing = gardenTeamMap.get(row.garden_id) ?? [];
+      gardenTeamMap.set(row.garden_id, [...existing, row.team_id]);
+    });
+
+    return rows.map((row) => ({
+      ...row,
+      team_ids: gardenTeamMap.get(row.id) ?? [],
+    }));
   }
 
   private async findGardenById(id: string) {
@@ -369,7 +455,17 @@ export class GardensService {
       .where(eq(gardens.id, id))
       .limit(1);
 
-    return rows[0] ?? null;
+    const garden = rows[0] ?? null;
+    if (!garden) {
+      return null;
+    }
+
+    const teamRows = await db
+      .select({ team_id: gardenTeams.teamId })
+      .from(gardenTeams)
+      .where(eq(gardenTeams.gardenId, id));
+
+    return { ...garden, team_ids: teamRows.map((row) => row.team_id) };
   }
 
   private toEmployeeGardenView(row: {
@@ -390,6 +486,7 @@ export class GardensService {
     billing_day: number | null;
     status: string;
     notes: string | null;
+    team_ids: string[];
     created_at: Date;
   }) {
     const { monthly_price, start_date, billing_day, ...safe } = row;
@@ -404,7 +501,7 @@ export class GardensService {
       return [];
     }
 
-    const rows = await db
+    const taskRows = await db
       .select({ garden_id: tasks.gardenId })
       .from(tasks)
       .innerJoin(
@@ -424,9 +521,30 @@ export class GardensService {
         ),
       );
 
+    const gardenRows = await db
+      .select({ garden_id: gardens.id })
+      .from(gardenTeams)
+      .innerJoin(gardens, eq(gardenTeams.gardenId, gardens.id))
+      .innerJoin(
+        companyMembershipTeams,
+        and(
+          eq(companyMembershipTeams.teamId, gardenTeams.teamId),
+          eq(companyMembershipTeams.companyId, gardens.companyId),
+        ),
+      )
+      .where(
+        and(
+          inArray(
+            companyMembershipTeams.companyMembershipId,
+            companyMembershipIds,
+          ),
+          inArray(gardens.companyId, companyIds),
+        ),
+      );
+
     return [
       ...new Set(
-        rows
+        [...taskRows, ...gardenRows]
           .map((item) => item.garden_id)
           .filter((gardenId): gardenId is string => Boolean(gardenId)),
       ),

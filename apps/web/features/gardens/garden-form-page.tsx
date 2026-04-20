@@ -24,6 +24,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -31,12 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import {
   createGarden,
   getGardenById,
   updateGarden,
 } from "@/features/gardens/api"
+import { listTeams } from "@/features/employees/api"
+import type { TeamOption } from "@/features/employees/types"
 import {
   gardenFormDefaults,
   gardenFormSchema,
@@ -83,12 +85,23 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
     control: form.control,
     name: "maintenance_anchor_date",
   })
+  const selectedTeamIds = useWatch({
+    control: form.control,
+    name: "team_ids",
+    defaultValue: [],
+  })
   const previousMaintenanceFrequencyRef = useRef(maintenanceFrequency)
 
   const gardenQuery = useQuery({
     queryKey: ["gardens", "detail", gardenId, activeCompanyId, accessToken],
     queryFn: () => getGardenById(accessToken ?? "", gardenId ?? ""),
     enabled: Boolean(accessToken && activeCompanyId && gardenId && mode === "edit" && isAdmin),
+  })
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams", activeCompanyId, accessToken],
+    queryFn: () => listTeams(accessToken ?? ""),
+    enabled: Boolean(accessToken && activeCompanyId),
   })
 
   useEffect(() => {
@@ -296,6 +309,54 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                         id="garden-phone"
                         aria-invalid={fieldState.invalid}
                       />
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  control={form.control}
+                  name="team_ids"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel>Equipas atribuídas</FieldLabel>
+                      {teamsQuery.isLoading ? (
+                        <div className="rounded-xl border border-dashed border-[#dfd7c0] px-4 py-3 text-sm text-muted-foreground">
+                          A carregar equipas...
+                        </div>
+                      ) : teamsQuery.data?.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {teamsQuery.data.map((team: TeamOption) => {
+                            const selected = selectedTeamIds.includes(team.id)
+
+                            return (
+                              <Button
+                                key={team.id}
+                                type="button"
+                                variant={selected ? "default" : "outline"}
+                                className={
+                                  selected ? "bg-[#215442] text-white hover:bg-[#183b2f]" : ""
+                                }
+                                onClick={() => {
+                                  const nextValue = selected
+                                    ? selectedTeamIds.filter((value: string) => value !== team.id)
+                                    : [...selectedTeamIds, team.id]
+                                  field.onChange(nextValue)
+                                }}
+                              >
+                                {team.name}
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-[#dfd7c0] px-4 py-3 text-sm text-muted-foreground">
+                          Ainda nao existem equipas disponiveis.
+                        </div>
+                      )}
+                      <FieldDescription>
+                        As equipas atribuídas ao jardim terão acesso às rotinas automáticas.
+                      </FieldDescription>
                       <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}

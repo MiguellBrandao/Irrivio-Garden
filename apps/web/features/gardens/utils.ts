@@ -72,6 +72,7 @@ export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {
       values.billing_day.trim() === "" ? undefined : Number(values.billing_day),
     status: values.status,
     notes: values.notes?.trim() || undefined,
+    team_ids: values.team_ids,
   }
 }
 
@@ -104,6 +105,7 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
     billing_day: garden.billing_day?.toString() ?? "",
     status: garden.status,
     notes: garden.notes ?? "",
+    team_ids: garden.team_ids ?? [],
   }
 }
 

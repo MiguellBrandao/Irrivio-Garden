@@ -1,9 +1,11 @@
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -26,6 +28,15 @@ export class CreateGardenDto extends CompanyScopedBodyDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @IsOptional()
+  @IsUUID()
+  team_id?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  team_ids?: string[] | null;
 
   @IsOptional()
   @IsNumber()

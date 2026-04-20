@@ -134,6 +134,20 @@
       "when": 1773871200000,
       "tag": "0020_garden_schedule_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1773871200001,
+      "tag": "0021_garden_team",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1773871200002,
+      "tag": "0022_garden_teams",
+      "breakpoints": true
     }
   ]
 }

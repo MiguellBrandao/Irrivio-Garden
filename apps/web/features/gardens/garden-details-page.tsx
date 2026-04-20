@@ -23,6 +23,7 @@ import {
   openAddressInMaps,
   statusLabels,
 } from "@/features/gardens/utils"
+import { listTeams } from "@/features/employees/api"
 import { useAuthStore } from "@/lib/auth/store"
 import { cn } from "@/lib/utils"
 import {
@@ -59,6 +60,12 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
     queryKey: ["gardens", "irrigation", gardenId, activeCompanyId, accessToken],
     queryFn: () => listGardenIrrigationZones(accessToken ?? "", gardenId),
     enabled: Boolean(accessToken && activeCompanyId && gardenId),
+  })
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams", activeCompanyId, accessToken],
+    queryFn: () => listTeams(accessToken ?? ""),
+    enabled: Boolean(accessToken && activeCompanyId),
   })
 
   if (!accessToken) {
@@ -98,6 +105,10 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
   const garden = gardenQuery.data
   const hasNotes = Boolean(garden.notes?.trim())
   const showFinancialDetails = isAdmin
+  const teamNames = garden.team_ids.map((teamId) =>
+    teamsQuery.data?.find((team) => team.id === teamId)?.name ?? 'Equipa desconhecida',
+  )
+  const assignedTeamsLabel = teamNames.length > 0 ? teamNames.join(', ') : null
 
   function handleOpenLocation() {
     const address = garden.address?.trim()
@@ -186,6 +197,38 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
           />
         </section>
       ) : null}
+
+      <section className="rounded-3xl border border-[#e7dfcd] bg-white p-5">
+        <div className="mb-5 space-y-1">
+          <h2 className="text-base font-semibold text-[#1f2f27]">Equipas atribuídas</h2>
+          <p className="text-sm text-muted-foreground">
+            {teamNames.length > 0
+              ? 'Membros destas equipas poderão ver o jardim e as rotinas automáticas no calendário.'
+              : 'Nenhuma equipa foi atribuída a este jardim.'}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-base font-semibold text-[#1f2f27]">
+              {assignedTeamsLabel ?? 'Sem equipa atribuída'}
+            </p>
+            {teamNames.length > 0 && teamNames.includes('Equipa desconhecida') ? (
+              <p className="text-sm text-muted-foreground">
+                Uma ou mais equipas atribuídas não foram encontradas.
+              </p>
+            ) : null}
+          </div>
+
+          {isAdmin ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/gardens/${garden.id}/edit`}>
+                Editar atribuicao
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </section>
 
       <div className="space-y-4">
         {showFinancialDetails ? (
