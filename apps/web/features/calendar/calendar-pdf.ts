@@ -114,15 +114,23 @@ export async function generateCalendarPdf(
     const dayKey = toIsoDate(day)
     const dayEntries = entriesByDate[dayKey] ?? []
 
-    doc.setFontSize(5.5)
+    let fontSize = 5.5
+    let entryHeight = 4.0
+    let entryY = cellY + 7
+    const availableHeight = rowHeight - 7 - 0.5
+    let maxEntries = Math.floor(availableHeight / entryHeight)
+
+    if (dayEntries.length > maxEntries) {
+      fontSize = 4.0
+      entryHeight = 3.0
+      maxEntries = Math.floor(availableHeight / entryHeight)
+    }
+
+    doc.setFontSize(fontSize)
     doc.setFont('helvetica', 'normal')
 
-    let entryY = cellY + 6
-    const maxEntriesPerCell = 4
-
-    dayEntries.slice(0, maxEntriesPerCell).forEach((entry) => {
-      const entryHeight = 3.2
-      if (entryY + entryHeight < cellY + rowHeight - 0.5) {
+    dayEntries.slice(0, maxEntries).forEach((entry) => {
+      if (entryY + entryHeight <= cellY + rowHeight - 0.5) {
         const title = entry.kind === "automatic-garden" ? entry.garden_name : gardenNameById[entry.garden_id] ?? "N/A"
         const timeRange = formatTaskTimeRange(entry)
 
@@ -134,9 +142,9 @@ export async function generateCalendarPdf(
       }
     })
 
-    if (dayEntries.length > maxEntriesPerCell) {
+    if (dayEntries.length > maxEntries) {
       doc.setTextColor(...colors.muted)
-      doc.text(`+${dayEntries.length - maxEntriesPerCell} mais`, cellX + 1.5, entryY)
+      doc.text(`+${dayEntries.length - maxEntries} mais`, cellX + 1.5, entryY)
     }
   })
 
