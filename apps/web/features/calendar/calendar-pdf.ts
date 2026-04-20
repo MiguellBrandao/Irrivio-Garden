@@ -121,8 +121,8 @@ export async function generateCalendarPdf(
     let maxEntries = Math.floor(availableHeight / entryHeight)
 
     if (dayEntries.length > maxEntries) {
-      fontSize = 4.0
-      entryHeight = 3.0
+      fontSize = 3.5
+      entryHeight = 2.5
       maxEntries = Math.floor(availableHeight / entryHeight)
     }
 
@@ -135,9 +135,13 @@ export async function generateCalendarPdf(
         const timeRange = formatTaskTimeRange(entry)
 
         doc.setTextColor(...colors.accent)
-        const entryText = timeRange ? `- ${title} (${timeRange})` : `- ${title}`
-        const truncatedText = entryText.substring(0, 40)
-        doc.text(truncatedText, cellX + 1.5, entryY, { maxWidth: cellWidth - 2, lineHeightFactor: 1 })
+        
+        // Truncate title if too long, but keep time range
+        const maxTitleLength = 20
+        const truncatedTitle = title.length > maxTitleLength ? title.substring(0, maxTitleLength - 3) + "..." : title
+        const entryText = timeRange ? `- ${truncatedTitle} (${timeRange})` : `- ${truncatedTitle}`
+        
+        doc.text(entryText, cellX + 1.5, entryY, { maxWidth: cellWidth - 2, lineHeightFactor: 1 })
         entryY += entryHeight
       }
     })
