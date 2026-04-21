@@ -60,5 +60,5 @@ export function getQuoteValidUntilFallback(quote: Pick<Quote, "valid_until" | "c
 }
 
 export function buildQuoteDocumentTitle(quote: Quote) {
-  return `Orcamento - ${quote.garden_client_name}`
+  return `Orçamento - ${quote.garden_client_name}`
 }

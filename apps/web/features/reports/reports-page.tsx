@@ -594,7 +594,7 @@ export function ReportsPageContent() {
           <DialogHeader>
             <DialogTitle>Gerar relatorio</DialogTitle>
             <DialogDescription>
-              Gera um PDF completo com financeiro, operacao, stock, irrigacao e orcamentos.
+              Gera um PDF completo com financeiro, operacao, stock, irrigacao e orçamentos.
             </DialogDescription>
           </DialogHeader>
 

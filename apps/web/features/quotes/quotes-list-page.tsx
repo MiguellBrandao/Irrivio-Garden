@@ -101,10 +101,10 @@ export function QuotesListPage() {
     },
     onSuccess: async (quote) => {
       await queryClient.invalidateQueries({ queryKey: ["quotes"] })
-      toast.success(`Orcamento para "${quote.garden_client_name}" apagado com sucesso.`)
+      toast.success(`Orçamento para "${quote.garden_client_name}" apagado com sucesso.`)
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Nao foi possivel apagar o orcamento.")
+      toast.error(error.message || "Nao foi possivel apagar o orçamento.")
     },
   })
 
@@ -114,7 +114,7 @@ export function QuotesListPage() {
         <CardHeader>
           <CardTitle>Sessao em falta</CardTitle>
           <CardDescription>
-            Faz login novamente antes de gerir orcamentos.
+            Faz login novamente antes de gerir orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -127,7 +127,7 @@ export function QuotesListPage() {
         <CardHeader>
           <CardTitle>Empresa em falta</CardTitle>
           <CardDescription>
-            Seleciona uma empresa antes de gerir orcamentos.
+            Seleciona uma empresa antes de gerir orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -140,7 +140,7 @@ export function QuotesListPage() {
         <CardHeader>
           <CardTitle>Acesso restrito</CardTitle>
           <CardDescription>
-            Apenas administradores podem gerir orcamentos.
+            Apenas administradores podem gerir orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -152,7 +152,7 @@ export function QuotesListPage() {
       <CardHeader className="gap-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <CardTitle>Orcamentos</CardTitle>
+            <CardTitle>Orçamentos</CardTitle>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Input
@@ -185,7 +185,7 @@ export function QuotesListPage() {
             <Button asChild className="bg-[#215442] text-white hover:bg-[#183b2f]">
               <Link href="/quotes/new">
                 <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-                Criar orcamento
+                Criar orçamento
               </Link>
             </Button>
           </div>
@@ -195,7 +195,7 @@ export function QuotesListPage() {
         <div className="grid gap-3 md:hidden">
           {quotesQuery.isLoading ? (
             <div className="rounded-2xl border border-[#dfd7c0] bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-              A carregar orcamentos...
+              A carregar orçamentos...
             </div>
           ) : paginatedQuotes.length ? (
             paginatedQuotes.map((quote) => (
@@ -236,12 +236,12 @@ export function QuotesListPage() {
                   <Button asChild variant="outline" size="icon-sm">
                     <Link href={`/quotes/${quote.id}/edit`}>
                       <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-                      <span className="sr-only">Editar orcamento</span>
+                      <span className="sr-only">Editar orçamento</span>
                     </Link>
                   </Button>
                   <DeleteConfirmDialog
-                    title="Apagar orcamento"
-                    description={`Tens a certeza que queres apagar o orcamento de ${quote.garden_client_name}? Esta acao nao pode ser revertida.`}
+                    title="Apagar orçamento"
+                    description={`Tens a certeza que queres apagar o orçamento de ${quote.garden_client_name}? Esta acao nao pode ser revertida.`}
                     onConfirm={() =>
                       deleteMutation.mutate({
                         id: quote.id,
@@ -249,14 +249,14 @@ export function QuotesListPage() {
                       })
                     }
                     isPending={deleteMutation.isPending}
-                    srLabel="Apagar orcamento"
+                    srLabel="Apagar orçamento"
                   />
                 </div>
               </article>
             ))
           ) : (
             <div className="rounded-2xl border border-[#dfd7c0] bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-              Nenhum orcamento encontrado.
+              Nenhum orçamento encontrado.
             </div>
           )}
         </div>
@@ -277,7 +277,7 @@ export function QuotesListPage() {
               {quotesQuery.isLoading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    A carregar orcamentos...
+                    A carregar orçamentos...
                   </TableCell>
                 </TableRow>
               ) : paginatedQuotes.length ? (
@@ -305,12 +305,12 @@ export function QuotesListPage() {
                         <Button asChild variant="outline" size="icon-sm">
                           <Link href={`/quotes/${quote.id}/edit`}>
                             <HugeiconsIcon icon={PencilEdit02Icon} strokeWidth={2} />
-                            <span className="sr-only">Editar orcamento</span>
+                            <span className="sr-only">Editar orçamento</span>
                           </Link>
                         </Button>
                         <DeleteConfirmDialog
-                          title="Apagar orcamento"
-                          description={`Tens a certeza que queres apagar o orcamento de ${quote.garden_client_name}? Esta acao nao pode ser revertida.`}
+                          title="Apagar orçamento"
+                          description={`Tens a certeza que queres apagar o orçamento de ${quote.garden_client_name}? Esta acao nao pode ser revertida.`}
                           onConfirm={() =>
                             deleteMutation.mutate({
                               id: quote.id,
@@ -318,7 +318,7 @@ export function QuotesListPage() {
                             })
                           }
                           isPending={deleteMutation.isPending}
-                          srLabel="Apagar orcamento"
+                          srLabel="Apagar orçamento"
                         />
                       </div>
                     </TableCell>
@@ -327,7 +327,7 @@ export function QuotesListPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    Nenhum orcamento encontrado.
+                    Nenhum orçamento encontrado.
                   </TableCell>
                 </TableRow>
               )}

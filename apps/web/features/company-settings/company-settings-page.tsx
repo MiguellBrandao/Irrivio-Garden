@@ -168,7 +168,7 @@ export function CompanySettingsPage() {
           <CardHeader>
             <CardTitle>Dados principais</CardTitle>
             <CardDescription>
-              Informacao institucional usada em orcamentos, pagamentos e identificacao da empresa.
+              Informacao institucional usada em orçamentos, pagamentos e identificacao da empresa.
             </CardDescription>
           </CardHeader>
           <CardContent>

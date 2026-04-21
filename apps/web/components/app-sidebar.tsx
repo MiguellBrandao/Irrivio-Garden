@@ -83,7 +83,7 @@ const adminFinanceItems = [
     icon: <HugeiconsIcon icon={Invoice03Icon} strokeWidth={2} />,
   },
   {
-    title: "Orcamentos",
+    title: "Orçamentos",
     url: "/quotes",
     icon: <HugeiconsIcon icon={SentIcon} strokeWidth={2} />,
   },

@@ -53,7 +53,7 @@ export async function downloadQuotePdf({
 
   doc.setProperties({
     title: buildQuoteDocumentTitle(quote),
-    subject: `Orcamento ${company.name}`,
+    subject: `Orçamento ${company.name}`,
     author: company.name,
     creator: "Irrivio",
   })
@@ -94,7 +94,7 @@ async function renderQuoteCanvas({
 
   const context = canvas.getContext("2d")
   if (!context) {
-    throw new Error("Nao foi possivel criar o documento do orcamento.")
+    throw new Error("Nao foi possivel criar o documento do orçamento.")
   }
 
   context.scale(RENDER_SCALE, RENDER_SCALE)
@@ -212,7 +212,7 @@ function drawQuoteDocument({
   context.textAlign = "right"
   setCanvasFill(context, colors.text)
   setCanvasFont(context, 600, 44)
-  context.fillText("Orcamento", width - marginX, topY + 6)
+  context.fillText("Orçamento", width - marginX, topY + 6)
 
   setCanvasFill(context, colors.accentMuted)
   setCanvasFont(context, 600, 13)
@@ -554,7 +554,7 @@ function canvasToBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) {
-        reject(new Error("Nao foi possivel gerar a imagem do orcamento."))
+        reject(new Error("Nao foi possivel gerar a imagem do orçamento."))
         return
       }
 
@@ -574,7 +574,7 @@ function downloadBlob(blob: Blob, fileName: string) {
 
 function buildQuoteFileName(quote: Quote, extension: "pdf" | "png") {
   const safeClientName = sanitizeFileName(quote.garden_client_name)
-  return `orcamento-${safeClientName || "cliente"}-${quote.id.slice(0, 8)}.${extension}`
+  return `orçamento-${safeClientName || "cliente"}-${quote.id.slice(0, 8)}.${extension}`
 }
 
 function sanitizeFileName(value: string) {

@@ -102,13 +102,13 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
       await queryClient.invalidateQueries({ queryKey: ["quotes"] })
       toast.success(
         mode === "edit"
-          ? "Orcamento atualizado com sucesso."
-          : "Orcamento criado com sucesso."
+          ? "Orçamento atualizado com sucesso."
+          : "Orçamento criado com sucesso."
       )
       router.push("/quotes")
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Nao foi possivel guardar o orcamento.")
+      toast.error(error.message || "Nao foi possivel guardar o orçamento.")
     },
   })
 
@@ -122,7 +122,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
         <CardHeader>
           <CardTitle>Sessao em falta</CardTitle>
           <CardDescription>
-            Faz login novamente antes de gerir orcamentos.
+            Faz login novamente antes de gerir orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -135,7 +135,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
         <CardHeader>
           <CardTitle>Empresa em falta</CardTitle>
           <CardDescription>
-            Seleciona uma empresa antes de gerir orcamentos.
+            Seleciona uma empresa antes de gerir orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -148,7 +148,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
         <CardHeader>
           <CardTitle>Acesso restrito</CardTitle>
           <CardDescription>
-            Apenas administradores podem criar ou editar orcamentos.
+            Apenas administradores podem criar ou editar orçamentos.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -161,7 +161,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <CardTitle>
-              {mode === "edit" ? "Editar orcamento" : "Criar orcamento"}
+              {mode === "edit" ? "Editar orçamento" : "Criar orçamento"}
             </CardTitle>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -177,7 +177,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
       <CardContent>
         {mode === "edit" && quoteQuery.isLoading ? (
           <div className="rounded-2xl border border-dashed border-[#dfd7c0] bg-[#fbf8ef] p-5 text-sm text-muted-foreground">
-            A carregar orcamento...
+            A carregar orçamento...
           </div>
         ) : (
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -322,7 +322,7 @@ export function QuoteFormPage({ mode, quoteId }: QuoteFormPageProps) {
                     ? "A guardar..."
                     : mode === "edit"
                       ? "Guardar alteracoes"
-                      : "Criar orcamento"}
+                      : "Criar orçamento"}
                 </Button>
                 <Button
                   type="button"

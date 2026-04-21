@@ -34,7 +34,7 @@ export function GenerateQuotePdfButton({
 
   async function handleGenerate(format: "pdf" | "png") {
     if (!activeCompany) {
-      toast.error("Seleciona uma empresa antes de gerar o orcamento.")
+      toast.error("Seleciona uma empresa antes de gerar o orçamento.")
       return
     }
 
@@ -50,7 +50,7 @@ export function GenerateQuotePdfButton({
       const message =
         error instanceof Error
           ? error.message
-          : `Nao foi possivel gerar o ${format.toUpperCase()} do orcamento.`
+          : `Nao foi possivel gerar o ${format.toUpperCase()} do orçamento.`
       toast.error(message)
     } finally {
       setIsGenerating(null)
@@ -69,7 +69,7 @@ export function GenerateQuotePdfButton({
         >
           <HugeiconsIcon icon={FileDownloadIcon} strokeWidth={2} />
           <span>
-            {isGenerating ? `A gerar ${isGenerating.toUpperCase()}` : "Baixar Orcamento"}
+            {isGenerating ? `A gerar ${isGenerating.toUpperCase()}` : "Baixar Orçamento"}
           </span>
         </Button>
       </DropdownMenuTrigger>

@@ -35,7 +35,7 @@ export function QuoteExportDocument({
 
         <div className="max-w-[320px] space-y-2 text-right">
           <h1 className="text-4xl font-semibold tracking-tight text-[#1f2f27]">
-            Orcamento
+            Orçamento
           </h1>
           <p className="text-sm uppercase tracking-[0.22em] text-[#7d8769]">
             Documento comercial

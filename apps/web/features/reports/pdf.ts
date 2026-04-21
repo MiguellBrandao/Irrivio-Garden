@@ -1003,15 +1003,15 @@ function drawIrrigationSection(context: PdfContext, reportData: GeneralReportDat
 
 function drawQuotesSection(context: PdfContext, reportData: GeneralReportData) {
   startSectionOnNewPage(context)
-  drawSectionTitle(context, "Orcamentos", "Orcamentos criados no periodo selecionado.")
+  drawSectionTitle(context, "Orçamentos", "Orçamentos criados no periodo selecionado.")
 
   drawStatGrid(context, [
-    { label: "Orcamentos criados", value: String(reportData.summary.quotes_created) },
+    { label: "Orçamentos criados", value: String(reportData.summary.quotes_created) },
     { label: "Valor total proposto", value: formatCurrency(reportData.summary.quotes_value) },
   ])
 
   drawTable(context, {
-    title: "Orcamentos do periodo",
+    title: "Orçamentos do periodo",
     columns: [
       { header: "Jardim", width: 38 },
       { header: "Criado", width: 20 },
@@ -1026,7 +1026,7 @@ function drawQuotesSection(context: PdfContext, reportData: GeneralReportData) {
       row.services,
       formatCurrency(row.price),
     ]),
-    emptyLabel: "Nao existem orcamentos criados no periodo.",
+    emptyLabel: "Nao existem orçamentos criados no periodo.",
   })
 }
 

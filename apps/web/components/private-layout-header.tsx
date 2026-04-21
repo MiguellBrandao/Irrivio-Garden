@@ -23,7 +23,7 @@ const labels: Record<string, string> = {
   teams: "Equipas",
   stock: "Stock",
   payments: "Pagamentos",
-  quotes: "Orcamentos",
+  quotes: "Orçamentos",
   reports: "Relatorios",
   settings: "Identidade visual",
   profile: "Perfil",
@@ -75,7 +75,7 @@ export function PrivateLayoutHeader() {
       : current === "new" && previous === "employees"
         ? "Novo membro"
       : current === "new" && previous === "quotes"
-        ? "Novo orcamento"
+        ? "Novo orçamento"
       : current === "new" && previous === "stock"
         ? "Novo produto"
       : current === "edit" && isStockRuleRoute
@@ -84,7 +84,7 @@ export function PrivateLayoutHeader() {
         ? previous === "employees"
           ? "Editar membro"
           : previous === "quotes"
-            ? "Editar orcamento"
+            ? "Editar orçamento"
           : previous === "stock"
             ? "Editar produto"
           : "Editar jardim"

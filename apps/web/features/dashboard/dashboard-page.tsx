@@ -398,7 +398,7 @@ function AdminDashboard({
   const quickActions: QuickAction[] = [
     { href: `/calendar/tasks/new?date=${todayIsoDate}`, label: "Criar tarefa" },
     { href: "/gardens/new", label: "Criar jardim" },
-    { href: "/quotes/new", label: "Criar orcamento" },
+    { href: "/quotes/new", label: "Criar orçamento" },
     { href: "/stock/new", label: "Criar produto" },
     { href: "/employees/new", label: "Criar membro" },
     { href: "/teams", label: "Gerir equipas" },
