@@ -88,6 +88,13 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
       ? garden.maintenance_frequency
       : "weekly"
 
+  // For weekly frequency, prefer garden.maintenance_day_of_week
+  // For biweekly/monthly, use derived weekday from anchor date, fallback to stored day
+  const maintenanceDayOfWeek =
+    maintenanceFrequency === "weekly"
+      ? garden.maintenance_day_of_week ?? "monday"
+      : derivedWeekday ?? garden.maintenance_day_of_week ?? "monday"
+
   return {
     client_name: garden.client_name,
     address: garden.address,
@@ -96,8 +103,7 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
     is_regular_service: garden.is_regular_service ?? true,
     show_in_calendar: garden.show_in_calendar ?? true,
     maintenance_frequency: maintenanceFrequency,
-    maintenance_day_of_week:
-      derivedWeekday ?? garden.maintenance_day_of_week ?? "monday",
+    maintenance_day_of_week: maintenanceDayOfWeek,
     maintenance_anchor_date: garden.maintenance_anchor_date ?? "",
     maintenance_start_time: normalizeTimeInput(garden.maintenance_start_time) ?? "",
     maintenance_end_time: normalizeTimeInput(garden.maintenance_end_time) ?? "",

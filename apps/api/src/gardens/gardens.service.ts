@@ -622,7 +622,8 @@ export class GardensService {
       maintenanceFrequency === 'weekly'
         ? (dto.maintenance_day_of_week ??
           ((current?.maintenance_day_of_week as GardenDayOfWeek | null | undefined) ??
-            null))
+            // If current day is null for weekly, try to derive from anchor date if available
+            (current?.maintenance_anchor_date ? this.getWeekdayFromIsoDate(current.maintenance_anchor_date) : null)))
         : this.getWeekdayFromIsoDate(maintenanceAnchorDate);
 
     if (!maintenanceDayOfWeek) {
