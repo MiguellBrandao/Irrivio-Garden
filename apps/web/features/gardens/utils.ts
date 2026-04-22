@@ -24,6 +24,23 @@ export const weekdayLabels: Record<GardenWeekday, string> = {
   sunday: "Domingo",
 }
 
+const weekdayLabelsByValue = Object.fromEntries(
+  Object.entries(weekdayLabels).map(([key, label]) => [label.toLowerCase(), key])
+) as Record<string, GardenWeekday>
+
+export function normalizeWeekdayValue(value: string | null | undefined): GardenWeekday | null {
+  if (!value) {
+    return null
+  }
+
+  const trimmed = value.trim()
+  if (trimmed in weekdayLabels) {
+    return trimmed as GardenWeekday
+  }
+
+  return weekdayLabelsByValue[trimmed.toLowerCase()] ?? null
+}
+
 export const statusLabels: Record<GardenStatus, string> = {
   active: "Ativo",
   paused: "Pausado",
@@ -88,12 +105,14 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
       ? garden.maintenance_frequency
       : "weekly"
 
+  const normalizedMaintenanceDay = normalizeWeekdayValue(garden.maintenance_day_of_week)
+
   // For weekly frequency, prefer garden.maintenance_day_of_week
   // For biweekly/monthly, use derived weekday from anchor date, fallback to stored day
   const maintenanceDayOfWeek =
     maintenanceFrequency === "weekly"
-      ? garden.maintenance_day_of_week ?? "monday"
-      : derivedWeekday ?? garden.maintenance_day_of_week ?? "monday"
+      ? normalizedMaintenanceDay ?? "monday"
+      : derivedWeekday ?? normalizedMaintenanceDay ?? "monday"
 
   return {
     client_name: garden.client_name,
