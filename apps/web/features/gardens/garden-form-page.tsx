@@ -601,15 +601,16 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                         <Controller
                           control={form.control}
                           name="maintenance_day_of_week"
+                          defaultValue="monday"
                           render={({ field, fieldState }) => (
                             <Field data-invalid={fieldState.invalid}>
                               <FieldLabel>Dia da semana</FieldLabel>
                               <Select
-                                value={field.value}
+                                value={field.value ?? "monday"}
                                 onValueChange={field.onChange}
                               >
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
-                                  <SelectValue placeholder="Selecione um dia" />
+                                  <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {Object.entries(weekdayLabels).map(([value, label]) => (
