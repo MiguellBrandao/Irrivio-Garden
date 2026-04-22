@@ -106,7 +106,8 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
 
   useEffect(() => {
     if (mode === "edit" && gardenQuery.data) {
-      form.reset(toGardenFormValues(gardenQuery.data))
+      const formValues = toGardenFormValues(gardenQuery.data)
+      form.reset(formValues)
     }
   }, [form, gardenQuery.data, mode])
 
@@ -591,7 +592,7 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                           render={({ field, fieldState }) => (
                             <Field data-invalid={fieldState.invalid}>
                               <FieldLabel>Dia da semana</FieldLabel>
-                              <Select value={field.value || "monday"} onValueChange={field.onChange}>
+                              <Select value={field.value} onValueChange={field.onChange}>
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                                   <SelectValue />
                                 </SelectTrigger>
