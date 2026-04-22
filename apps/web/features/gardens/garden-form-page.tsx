@@ -592,7 +592,7 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                           render={({ field, fieldState }) => (
                             <Field data-invalid={fieldState.invalid}>
                               <FieldLabel>Dia da semana</FieldLabel>
-                              <Select value={field.value} onValueChange={field.onChange}>
+                              <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
                                   <SelectValue />
                                 </SelectTrigger>
