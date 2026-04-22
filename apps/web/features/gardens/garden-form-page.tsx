@@ -610,7 +610,11 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                                 onValueChange={field.onChange}
                               >
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
-                                  <SelectValue />
+                                  <SelectValue>
+                                    {field.value
+                                      ? weekdayLabels[field.value as keyof typeof weekdayLabels]
+                                      : "Selecione um dia"}
+                                  </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                   {Object.entries(weekdayLabels).map(([value, label]) => (
