@@ -115,13 +115,18 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
       return
     }
 
+    // Only reset to defaults if we're creating a new garden or if garden data hasn't loaded yet
+    if (mode === "edit" && gardenQuery.data && gardenQuery.isSuccess) {
+      return
+    }
+
     form.setValue("show_in_calendar", false, { shouldDirty: true, shouldValidate: true })
     form.setValue("maintenance_frequency", "weekly", { shouldDirty: true })
     form.setValue("maintenance_day_of_week", "monday", { shouldDirty: true })
     form.setValue("maintenance_anchor_date", "", { shouldDirty: true, shouldValidate: true })
     form.setValue("maintenance_start_time", "", { shouldDirty: true })
     form.setValue("maintenance_end_time", "", { shouldDirty: true, shouldValidate: true })
-  }, [form, isRegularService])
+  }, [form, isRegularService, mode, gardenQuery.data, gardenQuery.isSuccess])
 
   useEffect(() => {
     const previousMaintenanceFrequency = previousMaintenanceFrequencyRef.current
