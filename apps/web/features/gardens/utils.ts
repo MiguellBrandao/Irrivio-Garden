@@ -33,12 +33,12 @@ export function normalizeWeekdayValue(value: string | null | undefined): GardenW
     return null
   }
 
-  const trimmed = value.trim()
+  const trimmed = value.trim().toLowerCase()
   if (trimmed in weekdayLabels) {
     return trimmed as GardenWeekday
   }
 
-  return weekdayLabelsByValue[trimmed.toLowerCase()] ?? null
+  return weekdayLabelsByValue[trimmed] ?? null
 }
 
 export const statusLabels: Record<GardenStatus, string> = {
