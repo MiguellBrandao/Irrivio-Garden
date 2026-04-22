@@ -115,14 +115,9 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
   useEffect(() => {
     if (mode === "create") {
       form.reset(gardenFormDefaults)
-    } else if (mode === "edit" && !gardenQuery.data && gardenQuery.isLoading) {
-      // While loading edit data, keep defaults but ensure day of week has a value
-      const currentValues = form.getValues()
-      if (!currentValues.maintenance_day_of_week) {
-        form.setValue("maintenance_day_of_week", "monday", { shouldDirty: false })
-      }
     }
-  }, [form, mode, gardenQuery.data, gardenQuery.isLoading])
+    // For edit mode, let the first useEffect handle the reset when data arrives
+  }, [form, mode])
 
   useEffect(() => {
     if (isRegularService) {
@@ -137,8 +132,8 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
     // For non-regular service, set maintenance fields to defaults
     form.setValue("show_in_calendar", false, { shouldDirty: true, shouldValidate: true })
     form.setValue("maintenance_frequency", "weekly", { shouldDirty: true })
-    // Don't override maintenance_day_of_week if it already has a value from edit mode
-    if (mode === "create" || !gardenQuery.data) {
+    // Only set default day of week for create mode
+    if (mode === "create") {
       form.setValue("maintenance_day_of_week", "monday", { shouldDirty: true })
     }
     form.setValue("maintenance_anchor_date", "", { shouldDirty: true, shouldValidate: true })
@@ -610,7 +605,7 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                             <Field data-invalid={fieldState.invalid}>
                               <FieldLabel>Dia da semana</FieldLabel>
                               <Select
-                                value={field.value || "monday"}
+                                value={field.value}
                                 onValueChange={field.onChange}
                               >
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
