@@ -111,6 +111,19 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
     }
   }, [form, gardenQuery.data, mode])
 
+  // Initialize form with proper defaults based on mode
+  useEffect(() => {
+    if (mode === "create") {
+      form.reset(gardenFormDefaults)
+    } else if (mode === "edit" && !gardenQuery.data && gardenQuery.isLoading) {
+      // While loading edit data, keep defaults but ensure day of week has a value
+      const currentValues = form.getValues()
+      if (!currentValues.maintenance_day_of_week) {
+        form.setValue("maintenance_day_of_week", "monday", { shouldDirty: false })
+      }
+    }
+  }, [form, mode, gardenQuery.data, gardenQuery.isLoading])
+
   useEffect(() => {
     if (isRegularService) {
       return
@@ -121,9 +134,13 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
       return
     }
 
+    // For non-regular service, set maintenance fields to defaults
     form.setValue("show_in_calendar", false, { shouldDirty: true, shouldValidate: true })
     form.setValue("maintenance_frequency", "weekly", { shouldDirty: true })
-    form.setValue("maintenance_day_of_week", "monday", { shouldDirty: true })
+    // Don't override maintenance_day_of_week if it already has a value from edit mode
+    if (mode === "create" || !gardenQuery.data) {
+      form.setValue("maintenance_day_of_week", "monday", { shouldDirty: true })
+    }
     form.setValue("maintenance_anchor_date", "", { shouldDirty: true, shouldValidate: true })
     form.setValue("maintenance_start_time", "", { shouldDirty: true })
     form.setValue("maintenance_end_time", "", { shouldDirty: true, shouldValidate: true })
@@ -592,9 +609,12 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                           render={({ field, fieldState }) => (
                             <Field data-invalid={fieldState.invalid}>
                               <FieldLabel>Dia da semana</FieldLabel>
-                              <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                              <Select
+                                value={field.value || "monday"}
+                                onValueChange={field.onChange}
+                              >
                                 <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
-                                  <SelectValue />
+                                  <SelectValue placeholder="Selecione um dia" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {Object.entries(weekdayLabels).map(([value, label]) => (
