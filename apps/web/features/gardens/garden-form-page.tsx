@@ -601,29 +601,30 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                         <Controller
                           control={form.control}
                           name="maintenance_day_of_week"
-                          render={({ field, fieldState }) => (
-                            <Field data-invalid={fieldState.invalid}>
-                              <FieldLabel>Dia da semana</FieldLabel>
-                              <Select
-                                value={field.value ?? "monday"}
-                                onValueChange={field.onChange}
-                              >
-                                <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
-                                  <SelectValue>
-                                    {weekdayLabels[(field.value ?? "monday") as keyof typeof weekdayLabels]}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(weekdayLabels).map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FieldError errors={[fieldState.error]} />
-                            </Field>
-                          )}
+                          render={({ field, fieldState }) => {
+                            const currentValue = form.getValues("maintenance_day_of_week") ?? field.value ?? "monday"
+                            return (
+                              <Field data-invalid={fieldState.invalid}>
+                                <FieldLabel>Dia da semana</FieldLabel>
+                                <Select
+                                  value={currentValue}
+                                  onValueChange={field.onChange}
+                                >
+                                  <SelectTrigger className="w-full" aria-invalid={fieldState.invalid}>
+                                    <SelectValue placeholder="Selecione um dia" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(weekdayLabels).map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FieldError errors={[fieldState.error]} />
+                              </Field>
+                            )
+                          }}
                         />
                       ) : (
                         <Field>
