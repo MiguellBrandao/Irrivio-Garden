@@ -29,22 +29,16 @@ const weekdayLabelsByValue = Object.fromEntries(
 ) as Record<string, GardenWeekday>
 
 export function normalizeWeekdayValue(value: string | null | undefined): GardenWeekday | null {
-  console.log("[DEBUG normalize] input value:", value, "type:", typeof value)
   if (!value) {
-    console.log("[DEBUG normalize] value is null/undefined/empty, returning null")
     return null
   }
 
   const trimmed = value.trim().toLowerCase()
-  console.log("[DEBUG normalize] trimmed value:", trimmed)
-  console.log("[DEBUG normalize] is in weekdayLabels?", trimmed in weekdayLabels)
   if (trimmed in weekdayLabels) {
     return trimmed as GardenWeekday
   }
 
-  const result = weekdayLabelsByValue[trimmed] ?? null
-  console.log("[DEBUG normalize] result from weekdayLabelsByValue:", result)
-  return result
+  return weekdayLabelsByValue[trimmed] ?? null
 }
 
 export const statusLabels: Record<GardenStatus, string> = {
@@ -100,9 +94,6 @@ export function toGardenPayload(values: GardenFormValues): SaveGardenPayload {
 }
 
 export function toGardenFormValues(garden: Garden): GardenFormValues {
-  console.log("[DEBUG utils] garden received:", garden)
-  console.log("[DEBUG utils] garden.maintenance_day_of_week:", garden.maintenance_day_of_week)
-  console.log("[DEBUG utils] garden.maintenance_frequency:", garden.maintenance_frequency)
   const derivedWeekday =
     garden.maintenance_frequency && garden.maintenance_frequency !== "weekly"
       ? getWeekdayFromIsoDate(garden.maintenance_anchor_date)
@@ -115,7 +106,6 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
       : "weekly"
 
   const normalizedMaintenanceDay = normalizeWeekdayValue(garden.maintenance_day_of_week)
-  console.log("[DEBUG utils] normalizedMaintenanceDay:", normalizedMaintenanceDay)
 
   // For weekly frequency, prefer garden.maintenance_day_of_week
   // For biweekly/monthly, use derived weekday from anchor date, fallback to stored day
@@ -123,8 +113,6 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
     maintenanceFrequency === "weekly"
       ? normalizedMaintenanceDay ?? "monday"
       : derivedWeekday ?? normalizedMaintenanceDay ?? "monday"
-
-  console.log("[DEBUG utils] maintenanceDayOfWeek final:", maintenanceDayOfWeek)
 
   return {
     client_name: garden.client_name,

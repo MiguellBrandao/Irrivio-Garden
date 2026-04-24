@@ -137,9 +137,14 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
             <h1 className="text-2xl font-semibold tracking-tight text-[#1f2f27] md:text-3xl">
               {garden.client_name}
             </h1>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            <button
+              type="button"
+              className="max-w-3xl text-left text-sm leading-6 text-muted-foreground hover:text-[#215442] hover:underline focus:outline-none focus:ring-2 focus:ring-[#215442] focus:ring-offset-2 rounded"
+              onClick={handleOpenLocation}
+              disabled={!garden.address?.trim()}
+            >
               {garden.address}
-            </p>
+            </button>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
