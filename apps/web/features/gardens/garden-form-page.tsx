@@ -106,8 +106,13 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
 
   useEffect(() => {
     if (mode === "edit" && gardenQuery.data) {
+      console.log("[DEBUG] gardenQuery.data received:", gardenQuery.data)
+      console.log("[DEBUG] maintenance_day_of_week from API:", gardenQuery.data.maintenance_day_of_week)
       const formValues = toGardenFormValues(gardenQuery.data)
+      console.log("[DEBUG] formValues after toGardenFormValues:", formValues)
+      console.log("[DEBUG] maintenance_day_of_week in formValues:", formValues.maintenance_day_of_week)
       form.reset(formValues)
+      console.log("[DEBUG] form.reset called with:", formValues.maintenance_day_of_week)
     }
   }, [form, gardenQuery.data, mode])
 
@@ -603,10 +608,14 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                           name="maintenance_day_of_week"
                           render={({ field, fieldState }) => {
                             const currentValue = form.getValues("maintenance_day_of_week") ?? field.value ?? "monday"
+                            console.log("[DEBUG] Select render - form.getValues:", form.getValues("maintenance_day_of_week"))
+                            console.log("[DEBUG] Select render - field.value:", field.value)
+                            console.log("[DEBUG] Select render - currentValue:", currentValue)
                             return (
                               <Field data-invalid={fieldState.invalid}>
                                 <FieldLabel>Dia da semana</FieldLabel>
                                 <Select
+                                  key={currentValue}
                                   value={currentValue}
                                   onValueChange={field.onChange}
                                 >
