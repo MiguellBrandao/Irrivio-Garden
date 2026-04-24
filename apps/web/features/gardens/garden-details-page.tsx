@@ -373,6 +373,14 @@ function BillingCard({ garden }: { garden: Garden }) {
 }
 
 function ContactCard({ garden }: { garden: Garden }) {
+  function handleOpenLocation() {
+    const address = garden.address?.trim()
+    if (!address) {
+      return
+    }
+    openAddressInMaps(address)
+  }
+
   return (
     <Card className="border-[#dfd7c0] bg-white">
       <CardHeader className="gap-2">
@@ -382,11 +390,20 @@ function ContactCard({ garden }: { garden: Garden }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
-        <DetailStack
-          icon={MapPinpoint02Icon}
-          label="Morada"
-          value={garden.address}
-        />
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] p-4 text-left hover:bg-[#f5f0e3] focus:outline-none focus:ring-2 focus:ring-[#215442] focus:ring-offset-2"
+          onClick={handleOpenLocation}
+          disabled={!garden.address?.trim()}
+        >
+          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl bg-white text-[#215442]">
+            <HugeiconsIcon icon={MapPinpoint02Icon} strokeWidth={2} />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Morada</p>
+            <p className="text-sm leading-6 text-[#1f2f27]">{garden.address}</p>
+          </div>
+        </button>
         <DetailStack
           icon={Call02Icon}
           label="Telefone"
