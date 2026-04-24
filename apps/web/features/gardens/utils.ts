@@ -245,19 +245,34 @@ export function openAddressInMaps(address: string) {
 
   const encodedAddress = encodeURIComponent(normalizedAddress)
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
-  const mobileLocationUrl = `geo:0,0?q=${encodedAddress}`
-  const mobileNavigator = navigator as Navigator & {
-    userAgentData?: { mobile?: boolean }
-  }
-  const isMobile =
-    mobileNavigator.userAgentData?.mobile === true ||
-    /android|iphone|ipad|ipod|windows phone|mobile/i.test(navigator.userAgent)
+  const appleMapsUrl = `maps://maps.apple.com/?q=${encodedAddress}`
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isAndroid = /android/i.test(navigator.userAgent)
 
-  if (isMobile) {
-    window.location.href = mobileLocationUrl
+  if (isIOS) {
+    // On iOS, try Apple Maps first, fallback to Google Maps
+    const appleMapsWorks = window.open(appleMapsUrl, "_blank")
+    // If Apple Maps didn't open (might be blocked), try Google Maps
+    if (!appleMapsWorks || appleMapsWorks.closed) {
+      window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
+    }
     return true
   }
 
+  if (isAndroid) {
+    // On Android, try geo: scheme first (opens Google Maps app)
+    const geoUrl = `geo:0,0?q=${encodedAddress}`
+    window.location.href = geoUrl
+    // Fallback to Google Maps web after a short delay if geo: didn't work
+    setTimeout(() => {
+      if (document.hidden === false) {
+        window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
+      }
+    }, 500)
+    return true
+  }
+
+  // Desktop fallback
   window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
   return true
 }
