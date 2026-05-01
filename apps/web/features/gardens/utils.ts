@@ -233,19 +233,7 @@ export function openAddressInMaps(address: string) {
 
   const encodedAddress = encodeURIComponent(normalizedAddress)
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`
-  const appleMapsUrl = `maps://maps.apple.com/?q=${encodedAddress}`
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isAndroid = /android/i.test(navigator.userAgent)
-
-  if (isIOS) {
-    // On iOS, try Apple Maps first, fallback to Google Maps
-    const appleMapsWorks = window.open(appleMapsUrl, "_blank")
-    // If Apple Maps didn't open (might be blocked), try Google Maps
-    if (!appleMapsWorks || appleMapsWorks.closed) {
-      window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
-    }
-    return true
-  }
 
   if (isAndroid) {
     // On Android, try geo: scheme first (opens Google Maps app)
@@ -260,7 +248,7 @@ export function openAddressInMaps(address: string) {
     return true
   }
 
-  // Desktop fallback
+  // iOS and Desktop: Open Google Maps in browser
   window.open(googleMapsUrl, "_blank", "noopener,noreferrer")
   return true
 }
