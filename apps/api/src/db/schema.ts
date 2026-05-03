@@ -138,6 +138,24 @@ export const gardenTeams = pgTable(
   }),
 );
 
+export const gardenNotes = pgTable('garden_notes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyId: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  gardenId: uuid('garden_id')
+    .notNull()
+    .references(() => gardens.id, { onDelete: 'cascade' }),
+  companyMembershipId: uuid('company_membership_id')
+    .notNull()
+    .references(() => companyMemberships.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  note: text('note').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const taskTypeEnum = pgEnum('task_type_enum', [
   'maintenance',
   'pruning',

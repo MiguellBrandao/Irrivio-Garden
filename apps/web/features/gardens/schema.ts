@@ -66,7 +66,6 @@ export const gardenFormSchema = z
         "O dia de cobranca deve estar entre 1 e 31."
       ),
     status: z.enum(["active", "paused", "cancelled"]),
-    notes: z.string().trim().optional(),
   })
   .superRefine((values, ctx) => {
     if (!values.is_regular_service) {
@@ -123,6 +122,5 @@ export const gardenFormDefaults: GardenFormValues = {
   start_date: "",
   billing_day: "",
   status: "active",
-  notes: "",
   team_ids: [],
 }

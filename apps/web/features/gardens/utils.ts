@@ -129,7 +129,6 @@ export function toGardenFormValues(garden: Garden): GardenFormValues {
     start_date: garden.start_date ?? "",
     billing_day: garden.billing_day?.toString() ?? "",
     status: garden.status,
-    notes: garden.notes ?? "",
     team_ids: garden.team_ids ?? [],
   }
 }

@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,9 +13,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getGardenById, listGardenIrrigationZones } from "@/features/gardens/api"
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog"
+import {
+  createGardenNote,
+  deleteGardenNote,
+  getGardenById,
+  listGardenIrrigationZones,
+  listGardenNotes,
+} from "@/features/gardens/api"
 import { IrrigationOverviewCard } from "@/features/gardens/irrigation-overview-card"
-import type { Garden, GardenStatus } from "@/features/gardens/types"
+import type { Garden, GardenNote, GardenStatus } from "@/features/gardens/types"
 import {
   formatCurrency,
   formatDate,
@@ -48,6 +56,7 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
   const activeCompany = useAuthStore((state) =>
     state.companies.find((company) => company.id === state.activeCompanyId) ?? null
   )
+  const user = useAuthStore((state) => state.user)
   const isAdmin = activeCompany?.role === "admin"
 
   const gardenQuery = useQuery({
@@ -60,6 +69,56 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
     queryKey: ["gardens", "irrigation", gardenId, activeCompanyId, accessToken],
     queryFn: () => listGardenIrrigationZones(accessToken ?? "", gardenId),
     enabled: Boolean(accessToken && activeCompanyId && gardenId),
+  })
+
+  const queryClient = useQueryClient()
+  const [noteText, setNoteText] = useState("")
+
+  const notesQuery = useQuery({
+    queryKey: ["gardens", "notes", gardenId, activeCompanyId, accessToken],
+    queryFn: () => listGardenNotes(accessToken ?? "", gardenId),
+    enabled: Boolean(accessToken && activeCompanyId && gardenId),
+  })
+
+  const createNoteMutation = useMutation({
+    mutationFn: async () => {
+      if (!accessToken) {
+        throw new Error("Sessao em falta.")
+      }
+
+      const note = noteText.trim()
+      if (!note) {
+        throw new Error("Escreve a nota antes de guardar.")
+      }
+
+      return createGardenNote(accessToken, gardenId, { note })
+    },
+    onSuccess: async () => {
+      setNoteText("")
+      await queryClient.invalidateQueries({ queryKey: ["gardens", "notes", gardenId] })
+      toast.success("Nota adicionada com sucesso.")
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Nao foi possivel adicionar a nota.")
+    },
+  })
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (noteId: string) => {
+      if (!accessToken) {
+        throw new Error("Sessao em falta.")
+      }
+
+      await deleteGardenNote(accessToken, gardenId, noteId)
+      return noteId
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["gardens", "notes", gardenId] })
+      toast.success("Nota apagada com sucesso.")
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Nao foi possivel apagar a nota.")
+    },
   })
 
   const teamsQuery = useQuery({
@@ -103,7 +162,6 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
   }
 
   const garden = gardenQuery.data
-  const hasNotes = Boolean(garden.notes?.trim())
   const showFinancialDetails = isAdmin
   const teamNames = garden.team_ids.map((teamId) =>
     teamsQuery.data?.find((team) => team.id === teamId)?.name ?? 'Equipa desconhecida',
@@ -249,25 +307,37 @@ export function GardenDetailsPage({ gardenId }: GardenDetailsPageProps) {
             />
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-              {hasNotes ? (
-                <NotesCard notes={garden.notes ?? ""} />
-              ) : (
-                <BillingCard garden={garden} />
-              )}
+              <GardenNotesCard
+                notes={notesQuery.data ?? []}
+                noteText={noteText}
+                onNoteTextChange={setNoteText}
+                onCreateNote={() => createNoteMutation.mutate()}
+                isCreating={createNoteMutation.isLoading}
+                onDeleteNote={(noteId) => deleteNoteMutation.mutate(noteId)}
+                canDelete={(note) => isAdmin || note.created_by_user_id === user?.id}
+                isLoading={notesQuery.isLoading}
+              />
 
               <div className="space-y-4">
                 <ContactCard garden={garden} />
-                {hasNotes ? <BillingCard garden={garden} /> : null}
+                <BillingCard garden={garden} />
               </div>
             </div>
           </>
-        ) : hasNotes ? (
+        ) : (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-            <NotesCard notes={garden.notes ?? ""} />
+            <GardenNotesCard
+              notes={notesQuery.data ?? []}
+              noteText={noteText}
+              onNoteTextChange={setNoteText}
+              onCreateNote={() => createNoteMutation.mutate()}
+              isCreating={createNoteMutation.isLoading}
+              onDeleteNote={(noteId) => deleteNoteMutation.mutate(noteId)}
+              canDelete={(note) => isAdmin || note.created_by_user_id === user?.id}
+              isLoading={notesQuery.isLoading}
+            />
             <ContactCard garden={garden} />
           </div>
-        ) : (
-          <ContactCard garden={garden} />
         )}
       </div>
 
@@ -316,7 +386,25 @@ function SummaryTile({
   )
 }
 
-function NotesCard({ notes }: { notes: string }) {
+function GardenNotesCard({
+  notes,
+  noteText,
+  onNoteTextChange,
+  onCreateNote,
+  isCreating,
+  onDeleteNote,
+  canDelete,
+  isLoading,
+}: {
+  notes: GardenNote[]
+  noteText: string
+  onNoteTextChange: (value: string) => void
+  onCreateNote: () => void
+  isCreating: boolean
+  onDeleteNote: (noteId: string) => void
+  canDelete: (note: GardenNote) => boolean
+  isLoading: boolean
+}) {
   return (
     <Card className="border-[#dfd7c0] bg-white">
       <CardHeader className="gap-2">
@@ -325,9 +413,71 @@ function NotesCard({ notes }: { notes: string }) {
           Observacoes internas e contexto adicional deste jardim.
         </CardDescription>
       </CardHeader>
-      <CardContent className="pt-0">
-        <div className="rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] p-5 text-sm leading-7 text-[#1f2f27]">
-          {notes}
+
+      <CardContent className="space-y-5 pt-0">
+        <div className="space-y-2">
+          <label htmlFor="garden-note" className="text-sm font-medium text-[#1f2f27]">
+            Adicionar nota
+          </label>
+          <textarea
+            id="garden-note"
+            value={noteText}
+            onChange={(event) => onNoteTextChange(event.target.value)}
+            rows={4}
+            className="w-full rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] px-4 py-3 text-sm leading-6 text-[#1f2f27] outline-none focus:border-[#215442] focus:ring-2 focus:ring-[#d7efde]"
+            placeholder="Escreve uma nota para este jardim..."
+          />
+          <Button
+            type="button"
+            onClick={onCreateNote}
+            disabled={isCreating}
+            className="bg-[#215442] text-white hover:bg-[#183b2f]"
+          >
+            {isCreating ? "A guardar..." : "Guardar nota"}
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] p-5 text-sm text-[#1f2f27]">
+              A carregar notas...
+            </div>
+          ) : notes.length === 0 ? (
+            <div className="rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] p-5 text-sm text-[#1f2f27]">
+              Ainda nao existem notas para este jardim.
+            </div>
+          ) : (
+            notes.map((note) => (
+              <div
+                key={note.id}
+                className="rounded-3xl border border-[#e8e1cf] bg-[#fbf8ef] p-5 text-sm text-[#1f2f27]"
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-[#1f2f27]">
+                      {note.company_membership_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(note.created_at).toLocaleString("pt-BR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </div>
+                  {canDelete(note) ? (
+                    <DeleteConfirmDialog
+                      title="Apagar nota"
+                      description="Tem certeza de que deseja apagar esta nota?"
+                      onConfirm={() => onDeleteNote(note.id)}
+                      isPending={false}
+                      srLabel="Apagar nota"
+                    />
+                  ) : null}
+                </div>
+                <p className="whitespace-pre-wrap leading-7">{note.note}</p>
+              </div>
+            ))
+          )}
         </div>
       </CardContent>
     </Card>

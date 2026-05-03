@@ -473,22 +473,6 @@ export function GardenFormPage({ mode, gardenId }: GardenFormPageProps) {
                   />
                 </div>
 
-                <Controller
-                  control={form.control}
-                  name="notes"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="garden-notes">Notas</FieldLabel>
-                      <Textarea
-                        {...field}
-                        id="garden-notes"
-                        aria-invalid={fieldState.invalid}
-                        className="min-h-28"
-                      />
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
               </FieldGroup>
             </section>
 

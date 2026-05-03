@@ -6,10 +6,12 @@ import {
 
 import type {
   GardenExpense,
+  GardenNote,
   GardenProductUsage,
   Garden,
   IrrigationZone,
   SaveGardenExpensePayload,
+  SaveGardenNotePayload,
   SaveGardenPayload,
   SaveGardenProductUsagePayload,
   SaveIrrigationZonePayload,
@@ -81,6 +83,43 @@ export function deleteGarden(authToken: string, gardenId: string) {
 
 export function listGardenProductUsage(authToken: string, gardenId: string) {
   return listProductUsage(authToken, { garden_id: gardenId })
+}
+
+export function listGardenNotes(authToken: string, gardenId: string) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<GardenNote[]>(
+    appendCompanyId(`/gardens/${gardenId}/notes`, companyId),
+    {
+      authToken,
+      requireAuth: true,
+    },
+  )
+}
+
+export function createGardenNote(
+  authToken: string,
+  gardenId: string,
+  payload: SaveGardenNotePayload,
+) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<GardenNote>(`/gardens/${gardenId}/notes`, {
+    method: 'POST',
+    authToken,
+    requireAuth: true,
+    body: JSON.stringify({ ...payload, company_id: companyId }),
+  })
+}
+
+export function deleteGardenNote(authToken: string, gardenId: string, noteId: string) {
+  const companyId = requireActiveCompanyId()
+
+  return apiFetch<void>(`/gardens/${gardenId}/notes/${noteId}?company_id=${companyId}`, {
+    method: 'DELETE',
+    authToken,
+    requireAuth: true,
+  })
 }
 
 export function listProductUsage(authToken: string, filters?: ProductUsageFilters) {

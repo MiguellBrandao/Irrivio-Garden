@@ -31,6 +31,17 @@ export type Garden = {
   created_at: string
 }
 
+export type GardenNote = {
+  id: string
+  company_id: string
+  garden_id: string
+  company_membership_id: string
+  created_by_user_id: string
+  company_membership_name: string
+  note: string
+  created_at: string
+}
+
 export type GardenProductUsage = {
   id: string
   company_id: string
@@ -106,7 +117,6 @@ export type SaveGardenPayload = {
   start_date?: string | null
   billing_day?: number | null
   status?: GardenStatus
-  notes?: string | null
   team_id?: string | null
   team_ids?: string[] | null
 }
@@ -117,6 +127,10 @@ export type SaveGardenProductUsagePayload = {
   date: string
   notes?: string
   task_id?: string
+}
+
+export type SaveGardenNotePayload = {
+  note: string
 }
 
 export type SaveGardenExpensePayload = {
